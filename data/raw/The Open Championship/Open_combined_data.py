@@ -15,6 +15,10 @@ def main():
         year = f.name.split("_")[0]
 
         df = pd.read_csv(f)
+
+        #remove players who didn't make the cut
+        df = df[df["position"] != "CUT"]
+
         df["year"] = int(year)
         dfs.append(df)
 
