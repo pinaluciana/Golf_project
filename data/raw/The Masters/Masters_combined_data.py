@@ -16,8 +16,8 @@ def main():
         
         df = pd.read_csv(f)
 
-        #remove players who didn't make the cut
-        df = df[df["position"] != "CUT"]
+        #remove players who didn't make the cut, got disqualified("DQ") or withdrew("WD")
+        df = df[~df["position"].isin(["CUT", "DQ", "WD"])]
         
         df["year"] = int(year)
         dfs.append(df)
