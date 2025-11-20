@@ -33,6 +33,8 @@ def main():
     all_pga.to_csv(output_path, index=False)
     
     print(f"Saved combined file to {output_path}")
+    print(f"Total rows: {len(all_pga)}")
+    print(f"Years included: {sorted(all_pga['year'].unique())}")
     print(all_pga.head())
 
 if __name__ == "__main__":

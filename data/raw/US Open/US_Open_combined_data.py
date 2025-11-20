@@ -14,6 +14,11 @@ def main():
 
         year = f.name.split("_")[0]
 
+        # Remove 2022 data due to missing variables (gir, prox_fw, prox_rgh, scrambling, great_shot, poor_shot)
+        if year == "2022":
+            print(f"Skipping {f.name} due to missing variables (gir, prox_fw, prox_rgh, scrambling, great_shot, poor_shot)")
+            continue
+
         df = pd.read_csv(f)
 
         #remove players who didn't make the cut, got disqualified("DQ") or withdrew("WD")
@@ -33,6 +38,8 @@ def main():
     all_us_open.to_csv(output_path, index=False)
 
     print(f"Saved combined file to {output_path}")
+    print(f"Total rows: {len(all_us_open)}")
+    print(f"Years included: {sorted(all_us_open['year'].unique())}")
     print(all_us_open.head())
 
 
