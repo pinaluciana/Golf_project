@@ -135,6 +135,58 @@ def plot_overall_performance(overall_perf_df,
         raise
 
 
+def plot_overall_performance_heatmap(overall_perf_df,
+                                      title='Performance Metrics by Major',
+                                      save_path=None):
+    """
+    Create a heatmap showing mean performance metrics by major.
+
+    This is an alternative to the bar chart - displays z-scores in a grid
+    format with color coding (green = above average, red = below average).
+
+    Args:
+        overall_perf_df: DataFrame with majors as rows, metrics as columns
+        title: Plot title
+        save_path: Path to save the figure (optional)
+
+    Raises:
+        ValueError: If DataFrame is empty or invalid
+        IOError: If unable to save the plot
+    """
+    if overall_perf_df is None or overall_perf_df.empty:
+        raise ValueError("Performance DataFrame is empty or None")
+
+    try:
+        plt.figure(figsize=(14, 5))
+        sns.heatmap(
+            overall_perf_df,
+            annot=True,
+            cmap='RdYlGn',
+            center=0,
+            fmt='.2f',
+            linewidths=0.5,
+            cbar_kws={'label': 'Z-Score'}
+        )
+        plt.title(title, fontsize=14, fontweight='bold', pad=20)
+        plt.xlabel('Performance Metric', fontsize=12)
+        plt.ylabel('Major', fontsize=12)
+        plt.xticks(rotation=45, ha='right')
+        plt.tight_layout()
+
+        if save_path:
+            save_path = Path(save_path)
+            save_path.parent.mkdir(parents=True, exist_ok=True)
+            plt.savefig(save_path, dpi=150, bbox_inches='tight')
+            logger.info("Saved overall performance heatmap to %s", save_path)
+
+        plt.close()
+
+    except (OSError, ValueError) as err:
+        logger.error("Error creating overall performance heatmap: %s", err)
+        plt.close()
+        raise
+
+
 def plot_top25_comparison(comparison_data, save_path=None):
     """
     Create a bar chart comparing top 25% finishers vs rest of field.
@@ -280,7 +332,7 @@ def plot_exploratory_results(analysis_results, results_dir=None):
         plots_failed.append(("correlation_heatmap.png", str(err)))
         logger.error("Failed to create correlation heatmap: %s", err)
 
-    # 2. Overall Performance by Major
+    # 2. Overall Performance by Major (Bar Chart)
     try:
         plot_overall_performance(
             analysis_results['overall_performance_std'],
@@ -291,6 +343,18 @@ def plot_exploratory_results(analysis_results, results_dir=None):
     except (ValueError, OSError) as err:
         plots_failed.append(("overall_performance_by_major.png", str(err)))
         logger.error("Failed to create overall performance plot: %s", err)
+
+    # 2b. Overall Performance by Major (Heatmap - alternative view)
+    try:
+        plot_overall_performance_heatmap(
+            analysis_results['overall_performance_std'],
+            title='Performance Metrics by Major (Z-Scores)',
+            save_path=results_dir / "overall_performance_heatmap.png"
+        )
+        plots_created.append("overall_performance_heatmap.png")
+    except (ValueError, OSError) as err:
+        plots_failed.append(("overall_performance_heatmap.png", str(err)))
+        logger.error("Failed to create overall performance heatmap: %s", err)
 
     # 3. Top 25% vs Rest Comparison
     try:
