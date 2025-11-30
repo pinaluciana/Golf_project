@@ -76,7 +76,7 @@ def plot_overall_performance(overall_perf_df, title='Overall Performance Metrics
     plt.legend(title='Major', bbox_to_anchor=(1.0, 1.0), loc='upper left', fontsize=11)
     
     # Add horizontal line at 0 for reference
-    plt.axhline(y=0, color='black', linestyle='--', linewidth=1.2)
+    plt.axhline(y=0, color='black', linestyle='--', linewidth=1)
     
     # Add horizontal gridlines for easier reading
     plt.grid(axis='y', alpha=0.3)
@@ -307,16 +307,6 @@ if __name__ == "__main__":
         level=logging.INFO,
         format='%(asctime)s - %(levelname)s - %(message)s'
     )
-    
-    import sys
-    import os
-    # Get the directory containing this script (src/models)
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    # Get the parent directory (src)
-    src_dir = os.path.dirname(current_dir)
-    # Add src to the system path so Python can find data_loader
-    if src_dir not in sys.path:
-        sys.path.append(src_dir)
 
     # Import and run exploratory analysis, then plot
     from data_loader import load_combined_data
