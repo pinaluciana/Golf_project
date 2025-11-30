@@ -54,6 +54,15 @@ def load_data():
     
     return df
 
+def load_combined_data():
+    """
+    Load the already-combined majors dataset: all_majors_combined.csv,
+    to be able to reuse data easily later on.
+    """
+    root = Path(__file__).parent.parent
+    df = pd.read_csv(root / "data" / "processed" / "all_majors_combined.csv")
+    logger.info(f"Loaded {len(df)} player & tournament records")
+    return df
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
