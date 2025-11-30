@@ -6,7 +6,7 @@ Dep. Variable:            total_score   R-squared:                       0.811
 Model:                            OLS   Adj. R-squared:                  0.809
 Method:                 Least Squares   F-statistic:                     490.2
 Date:                Sun, 30 Nov 2025   Prob (F-statistic):               0.00
-Time:                        21:36:48   Log-Likelihood:                -3537.7
+Time:                        21:53:53   Log-Likelihood:                -3537.7
 No. Observations:                1384   AIC:                             7101.
 Df Residuals:                    1371   BIC:                             7169.
 Df Model:                          12                                         

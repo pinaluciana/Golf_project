@@ -17,17 +17,23 @@ import numpy as np
 import statsmodels.api as sm
 from sklearn.preprocessing import StandardScaler
 
-# Add parent directory to path for imports
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-
-from data_loader import load_combined_data
-
 # Setup logging
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
+
+# Add src directory to path for imports
+SRC_DIR = Path(__file__).parent.parent.parent
+sys.path.insert(0, str(SRC_DIR))
+
+try:
+    from data_loader import load_combined_data
+except ImportError as e:
+    logger.error("Failed to import data_loader: %s", e)
+    logger.error("Make sure data_loader.py is in the src/ directory")
+    raise
 
 
 # =============================================================================
@@ -65,11 +71,29 @@ def prepare_data(df):
         X_scaled: Standardized feature DataFrame
         y: Target variable (total_score)
         scaler: Fitted StandardScaler for later use
+
+    Raises:
+        ValueError: If required columns are missing
     """
     logger.info("Preparing data for pooled linear regression")
 
+    # Validate required columns exist
+    missing_features = [f for f in FEATURES if f not in df.columns]
+    if missing_features:
+        raise ValueError(f"Missing required features: {missing_features}")
+
+    if 'total_score' not in df.columns:
+        raise ValueError("Missing required target column: total_score")
+
     X = df[FEATURES]
     y = df['total_score']
+
+    # Check for missing values
+    if X.isnull().any().any():
+        logger.warning("Missing values detected in features, dropping rows")
+        valid_idx = X.dropna().index
+        X = X.loc[valid_idx]
+        y = y.loc[valid_idx]
 
     # Standardize features since they're on different scales
     scaler = StandardScaler()
@@ -95,16 +119,24 @@ def fit_pooled_linear_regression(X_scaled, y):
 
     Returns:
         model: Fitted statsmodels OLS model
+
+    Raises:
+        ValueError: If model fitting fails
     """
     logger.info("Fitting pooled linear regression model")
 
-    X_with_const = sm.add_constant(X_scaled)
-    model = sm.OLS(y, X_with_const).fit()
+    try:
+        X_with_const = sm.add_constant(X_scaled)
+        model = sm.OLS(y, X_with_const).fit()
 
-    logger.info("Model R²: %.3f", model.rsquared)
-    logger.info("Model Adjusted R²: %.3f", model.rsquared_adj)
+        logger.info("Model R²: %.3f", model.rsquared)
+        logger.info("Model Adjusted R²: %.3f", model.rsquared_adj)
 
-    return model
+        return model
+
+    except Exception as err:
+        logger.error("Failed to fit model: %s", err)
+        raise ValueError(f"Model fitting failed: {err}") from err
 
 
 def extract_coefficients(model):
@@ -144,6 +176,10 @@ def run_pooled_linear_regression(df, results_dir=None):
 
     Returns:
         Dictionary containing model, coefficients, and metrics
+
+    Raises:
+        ValueError: If data preparation or model fitting fails
+        IOError: If results cannot be saved
     """
     logger.info("Starting pooled linear regression analysis")
 
@@ -154,7 +190,11 @@ def run_pooled_linear_regression(df, results_dir=None):
     else:
         results_dir = Path(results_dir)
 
-    results_dir.mkdir(parents=True, exist_ok=True)
+    try:
+        results_dir.mkdir(parents=True, exist_ok=True)
+    except OSError as err:
+        logger.error("Failed to create results directory: %s", err)
+        raise IOError(f"Cannot create results directory: {err}") from err
 
     # Prepare data
     X_scaled, y, scaler = prepare_data(df)
@@ -174,15 +214,21 @@ def run_pooled_linear_regression(df, results_dir=None):
     print(coefficients.to_string(index=False))
 
     # Save coefficients to CSV
-    coefficients.to_csv(results_dir / "coefficients.csv", index=False)
-    logger.info("Saved coefficients to %s", results_dir / "coefficients.csv")
+    try:
+        coefficients.to_csv(results_dir / "coefficients.csv", index=False)
+        logger.info("Saved coefficients to %s", results_dir / "coefficients.csv")
+    except OSError as err:
+        logger.warning("Could not save coefficients CSV: %s", err)
 
     # Save model summary to text file
-    with open(results_dir / "model_summary.txt", 'w', encoding='utf-8') as f:
-        f.write("POOLED LINEAR REGRESSION RESULTS\n")
-        f.write("=" * 80 + "\n")
-        f.write(str(model.summary()))
-    logger.info("Saved model summary to %s", results_dir / "model_summary.txt")
+    try:
+        with open(results_dir / "model_summary.txt", 'w', encoding='utf-8') as f:
+            f.write("POOLED LINEAR REGRESSION RESULTS\n")
+            f.write("=" * 80 + "\n")
+            f.write(str(model.summary()))
+        logger.info("Saved model summary to %s", results_dir / "model_summary.txt")
+    except OSError as err:
+        logger.warning("Could not save model summary: %s", err)
 
     # Compile results
     results = {
@@ -212,52 +258,65 @@ def run_pooled_linear_regression(df, results_dir=None):
 # =============================================================================
 
 if __name__ == "__main__":
-    # Load data
-    logger.info("Loading combined dataset")
-    data = load_combined_data()
-    logger.info("Loaded %d player-tournament records", len(data))
+    try:
+        # Load data
+        logger.info("Loading combined dataset")
+        data = load_combined_data()
+        logger.info("Loaded %d player-tournament records", len(data))
 
-    # Run analysis
-    model_results = run_pooled_linear_regression(data)
+        # Run analysis
+        model_results = run_pooled_linear_regression(data)
 
-    # Print summary metrics
-    print("\n" + "=" * 60)
-    print("MODEL SUMMARY")
-    print("=" * 60)
-    print(f"R²: {model_results['metrics']['r_squared']:.3f}")
-    print(f"Adjusted R²: {model_results['metrics']['adj_r_squared']:.3f}")
-    print(f"RMSE: {model_results['metrics']['rmse']:.3f} strokes")
-    print(f"Observations: {model_results['metrics']['n_observations']}")
+        # Print summary metrics
+        print("\n" + "=" * 60)
+        print("MODEL SUMMARY")
+        print("=" * 60)
+        print(f"R²: {model_results['metrics']['r_squared']:.3f}")
+        print(f"Adjusted R²: {model_results['metrics']['adj_r_squared']:.3f}")
+        print(f"RMSE: {model_results['metrics']['rmse']:.3f} strokes")
+        print(f"Observations: {model_results['metrics']['n_observations']}")
 
-    # Generate plots using evaluation module
-    print("\nGenerating plots...")
-    from evaluation import (
-        plot_pooled_linear_coefficients,
-        plot_residuals,
-        plot_actual_vs_predicted
-    )
+        # Generate plots using evaluation module
+        print("\nGenerating plots...")
+        try:
+            from evaluation import (
+                plot_pooled_linear_coefficients,
+                plot_residuals,
+                plot_actual_vs_predicted
+            )
 
-    # Setup figures directory
-    project_root = Path(__file__).parent.parent.parent.parent
-    fig_dir = project_root / "results" / "2_Econometric_models"
-    fig_dir = fig_dir / "1_Pooled_linear_regression" / "figures"
-    fig_dir.mkdir(parents=True, exist_ok=True)
+            # Setup figures directory
+            project_root = Path(__file__).parent.parent.parent.parent
+            fig_dir = project_root / "results" / "2_Econometric_models"
+            fig_dir = fig_dir / "1_Pooled_linear_regression" / "figures"
+            fig_dir.mkdir(parents=True, exist_ok=True)
 
-    plot_pooled_linear_coefficients(
-        model_results['coefficients'],
-        save_path=fig_dir / "coefficient_importance.png"
-    )
-    plot_residuals(
-        model_results['y'],
-        model_results['y_pred'],
-        title='Pooled Linear Regression: Residual Plot',
-        save_path=fig_dir / "residual_plot.png"
-    )
-    plot_actual_vs_predicted(
-        model_results['y'],
-        model_results['y_pred'],
-        title='Pooled Linear Regression: Actual vs Predicted',
-        save_path=fig_dir / "actual_vs_predicted.png"
-    )
+            plot_pooled_linear_coefficients(
+                model_results['coefficients'],
+                save_path=fig_dir / "coefficient_importance.png"
+            )
+            plot_residuals(
+                model_results['y'],
+                model_results['y_pred'],
+                title='Pooled Linear Regression: Residual Plot',
+                save_path=fig_dir / "residual_plot.png"
+            )
+            plot_actual_vs_predicted(
+                model_results['y'],
+                model_results['y_pred'],
+                title='Pooled Linear Regression: Actual vs Predicted',
+                save_path=fig_dir / "actual_vs_predicted.png"
+            )
 
-    print(f"Plots saved to: {fig_dir}")
+            print(f"Plots saved to: {fig_dir}")
+
+        except ImportError as err:
+            logger.warning("Could not import evaluation module: %s", err)
+            logger.warning("Skipping plot generation")
+
+    except FileNotFoundError as err:
+        logger.error("Data file not found: %s", err)
+        sys.exit(1)
+    except (ValueError, KeyError) as err:
+        logger.error("Data processing error: %s", err)
+        sys.exit(1)
