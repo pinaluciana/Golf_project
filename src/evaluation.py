@@ -558,6 +558,393 @@ def plot_actual_vs_predicted(y_true, y_pred, title='Actual vs Predicted',
 
 
 # =============================================================================
+# Model 1: Pooled Linear Regression Plots
+# =============================================================================
+
+def plot_pooled_linear_coefficients(coefficients, save_path=None):
+    """
+    Create horizontal bar chart of pooled linear regression coefficients.
+
+    Args:
+        coefficients: DataFrame with Feature, Coefficient, p_value columns
+        save_path: Path to save figure (optional)
+    """
+    if coefficients is None or len(coefficients) == 0:
+        raise ValueError("Coefficients data is empty or None")
+
+    try:
+        fig, ax = plt.subplots(figsize=(10, 8))
+
+        colors = [
+            'steelblue' if p < 0.05 else 'lightgray'
+            for p in coefficients['p_value']
+        ]
+
+        ax.barh(coefficients['Feature'], coefficients['Coefficient'], color=colors)
+        ax.set_xlabel('Standardized Coefficient', fontsize=12)
+        ax.set_title(
+            'Pooled Linear Regression: Feature Importance\n'
+            '(Blue = Significant at p<0.05)',
+            fontsize=14,
+            fontweight='bold'
+        )
+        ax.axvline(x=0, color='black', linestyle='--', linewidth=0.8)
+        ax.grid(axis='x', alpha=0.3)
+        plt.tight_layout()
+
+        if save_path:
+            save_path = Path(save_path)
+            save_path.parent.mkdir(parents=True, exist_ok=True)
+            plt.savefig(save_path, dpi=150, bbox_inches='tight')
+            logger.info("Saved pooled linear coefficients plot to %s", save_path)
+
+        plt.close()
+
+    except (OSError, ValueError) as err:
+        logger.error("Error creating pooled linear coefficients plot: %s", err)
+        plt.close()
+        raise
+
+
+# =============================================================================
+# Model 2: Per-Major Linear Regression Plots
+# =============================================================================
+
+def plot_per_major_coefficient_heatmap(coef_df, save_path=None):
+    """
+    Create heatmap showing coefficient values across majors.
+
+    Args:
+        coef_df: DataFrame with features as rows, majors as columns
+        save_path: Path to save figure (optional)
+    """
+    if coef_df is None or coef_df.empty:
+        raise ValueError("Coefficient DataFrame is empty or None")
+
+    try:
+        plt.figure(figsize=(12, 8))
+        sns.heatmap(
+            coef_df.T,
+            annot=True,
+            fmt='.1f',
+            cmap='RdBu_r',
+            center=0,
+            cbar_kws={'label': 'Coefficient Value'},
+            linewidths=0.5
+        )
+        plt.title(
+            'Feature Importance by Major Championship',
+            fontsize=14,
+            fontweight='bold'
+        )
+        plt.xlabel('Feature', fontsize=12)
+        plt.ylabel('Major Championship', fontsize=12)
+        plt.xticks(rotation=45, ha='right')
+        plt.tight_layout()
+
+        if save_path:
+            save_path = Path(save_path)
+            save_path.parent.mkdir(parents=True, exist_ok=True)
+            plt.savefig(save_path, dpi=150, bbox_inches='tight')
+            logger.info("Saved per-major coefficient heatmap to %s", save_path)
+
+        plt.close()
+
+    except (OSError, ValueError) as err:
+        logger.error("Error creating per-major coefficient heatmap: %s", err)
+        plt.close()
+        raise
+
+
+def plot_per_major_top_features(results, save_path=None):
+    """
+    Create grouped bar chart comparing top features across majors.
+
+    Args:
+        results: Dictionary from fit_per_major_regressions()
+        save_path: Path to save figure (optional)
+    """
+    if results is None:
+        raise ValueError("Results dictionary is None")
+
+    try:
+        top_features = ['gir', 'scrambling', 'accuracy', 'sg_putt', 'sg_arg']
+        majors = [m for m in results.keys() if m != 'coefficient_comparison']
+
+        fig, ax = plt.subplots(figsize=(12, 6))
+        x = np.arange(len(top_features))
+        width = 0.2
+
+        for i, major in enumerate(majors):
+            coeffs = [results[major]['coefficients'][feat] for feat in top_features]
+            ax.bar(x + i * width, coeffs, width, label=major)
+
+        ax.set_xticks(x + width * 1.5)
+        ax.set_xticklabels(top_features)
+        ax.set_ylabel('Coefficient Value', fontsize=12)
+        ax.set_xlabel('Feature', fontsize=12)
+        ax.set_title(
+            'Top 5 Features: Coefficient Comparison Across Majors',
+            fontsize=14,
+            fontweight='bold'
+        )
+        ax.axhline(y=0, color='black', linestyle='--', linewidth=0.8)
+        ax.legend(title='Major')
+        ax.grid(axis='y', alpha=0.3)
+        plt.tight_layout()
+
+        if save_path:
+            save_path = Path(save_path)
+            save_path.parent.mkdir(parents=True, exist_ok=True)
+            plt.savefig(save_path, dpi=150, bbox_inches='tight')
+            logger.info("Saved per-major top features plot to %s", save_path)
+
+        plt.close()
+
+    except (OSError, ValueError, KeyError) as err:
+        logger.error("Error creating per-major top features plot: %s", err)
+        plt.close()
+        raise
+
+
+# =============================================================================
+# Model 3: Logistic Regression Plots
+# =============================================================================
+
+def plot_logistic_coefficients(coefficients, save_path=None):
+    """
+    Plot logistic regression coefficients.
+
+    Args:
+        coefficients: DataFrame with Feature, Coefficient, p_value columns
+        save_path: Path to save figure (optional)
+    """
+    if coefficients is None or len(coefficients) == 0:
+        raise ValueError("Coefficients data is empty or None")
+
+    try:
+        fig, ax = plt.subplots(figsize=(10, 8))
+
+        colors = [
+            'steelblue' if p < 0.05 else 'lightgray'
+            for p in coefficients['p_value']
+        ]
+
+        ax.barh(coefficients['Feature'], coefficients['Coefficient'], color=colors)
+        ax.set_xlabel('Coefficient Value', fontsize=12)
+        ax.set_title(
+            'Feature Importance in Predicting Top 25% Finish\n'
+            '(Blue = Significant at p<0.05)',
+            fontsize=14,
+            fontweight='bold'
+        )
+        ax.axvline(x=0, color='black', linestyle='--', linewidth=0.8)
+        ax.grid(axis='x', alpha=0.3)
+        plt.tight_layout()
+
+        if save_path:
+            save_path = Path(save_path)
+            save_path.parent.mkdir(parents=True, exist_ok=True)
+            plt.savefig(save_path, dpi=150, bbox_inches='tight')
+            logger.info("Saved logistic coefficients plot to %s", save_path)
+
+        plt.close()
+
+    except (OSError, ValueError) as err:
+        logger.error("Error creating logistic coefficients plot: %s", err)
+        plt.close()
+        raise
+
+
+def plot_confusion_matrix(y_true, y_pred, save_path=None):
+    """
+    Plot confusion matrix for classification model.
+
+    Args:
+        y_true: Actual values
+        y_pred: Predicted values
+        save_path: Path to save figure (optional)
+
+    Returns:
+        Confusion matrix array
+    """
+    from sklearn.metrics import confusion_matrix as calc_cm
+
+    try:
+        conf_mat = calc_cm(y_true, y_pred)
+
+        plt.figure(figsize=(8, 6))
+        sns.heatmap(
+            conf_mat,
+            annot=True,
+            fmt='d',
+            cmap='Blues',
+            xticklabels=['Rest of Field', 'Top 25%'],
+            yticklabels=['Rest of Field', 'Top 25%']
+        )
+        plt.title('Confusion Matrix', fontsize=14, fontweight='bold')
+        plt.ylabel('Actual', fontsize=12)
+        plt.xlabel('Predicted', fontsize=12)
+        plt.tight_layout()
+
+        if save_path:
+            save_path = Path(save_path)
+            save_path.parent.mkdir(parents=True, exist_ok=True)
+            plt.savefig(save_path, dpi=150, bbox_inches='tight')
+            logger.info("Saved confusion matrix to %s", save_path)
+
+        plt.close()
+
+        return conf_mat
+
+    except (OSError, ValueError) as err:
+        logger.error("Error creating confusion matrix: %s", err)
+        plt.close()
+        raise
+
+
+def plot_roc_curve(y_true, y_pred_proba, roc_auc, save_path=None):
+    """
+    Plot ROC curve for classification model.
+
+    Args:
+        y_true: Actual values
+        y_pred_proba: Predicted probabilities
+        roc_auc: ROC AUC score
+        save_path: Path to save figure (optional)
+    """
+    from sklearn.metrics import roc_curve as calc_roc
+
+    try:
+        fpr, tpr, _ = calc_roc(y_true, y_pred_proba)
+
+        plt.figure(figsize=(8, 6))
+        plt.plot(fpr, tpr, linewidth=2, label=f'ROC Curve (AUC = {roc_auc:.3f})')
+        plt.plot([0, 1], [0, 1], 'k--', linewidth=1, label='Random Classifier')
+        plt.xlabel('False Positive Rate', fontsize=12)
+        plt.ylabel('True Positive Rate', fontsize=12)
+        plt.title(
+            'ROC Curve: Top 25% Classification',
+            fontsize=14,
+            fontweight='bold'
+        )
+        plt.legend(loc='lower right')
+        plt.grid(alpha=0.3)
+        plt.tight_layout()
+
+        if save_path:
+            save_path = Path(save_path)
+            save_path.parent.mkdir(parents=True, exist_ok=True)
+            plt.savefig(save_path, dpi=150, bbox_inches='tight')
+            logger.info("Saved ROC curve to %s", save_path)
+
+        plt.close()
+
+    except (OSError, ValueError) as err:
+        logger.error("Error creating ROC curve: %s", err)
+        plt.close()
+        raise
+
+
+def plot_interaction_heatmap(comparison_table, save_path=None):
+    """
+    Plot heatmap of interaction coefficients by major.
+
+    Args:
+        comparison_table: DataFrame with metrics as rows, majors as columns
+        save_path: Path to save figure (optional)
+    """
+    if comparison_table is None or comparison_table.empty:
+        raise ValueError("Comparison table is empty or None")
+
+    try:
+        plt.figure(figsize=(14, 10))
+        sns.heatmap(
+            comparison_table.T,
+            annot=True,
+            fmt='.2f',
+            cmap='RdBu_r',
+            center=0,
+            cbar_kws={'label': 'Coefficient Value'},
+            linewidths=0.5
+        )
+        plt.title(
+            'How Performance Metrics Affect Top 25% Probability Across Majors\n'
+            '(Logistic Regression with Interactions)',
+            fontsize=16,
+            fontweight='bold',
+            pad=20
+        )
+        plt.xlabel('Performance Metric', fontsize=13)
+        plt.ylabel('Major Tournament', fontsize=13)
+        plt.xticks(rotation=45, ha='right', fontsize=11)
+        plt.yticks(fontsize=11)
+        plt.tight_layout()
+
+        if save_path:
+            save_path = Path(save_path)
+            save_path.parent.mkdir(parents=True, exist_ok=True)
+            plt.savefig(save_path, dpi=150, bbox_inches='tight')
+            logger.info("Saved interaction heatmap to %s", save_path)
+
+        plt.close()
+
+    except (OSError, ValueError) as err:
+        logger.error("Error creating interaction heatmap: %s", err)
+        plt.close()
+        raise
+
+
+def plot_key_metrics_by_major(comparison_table, save_path=None):
+    """
+    Plot bar chart comparing key metrics across majors.
+
+    Args:
+        comparison_table: DataFrame with metrics as rows, majors as columns
+        save_path: Path to save figure (optional)
+    """
+    if comparison_table is None or comparison_table.empty:
+        raise ValueError("Comparison table is empty or None")
+
+    try:
+        key_metrics = ['sg_putt', 'sg_ott', 'sg_app', 'sg_arg', 'gir', 'scrambling']
+        subset = comparison_table.loc[key_metrics]
+
+        subset.T.plot(kind='bar', figsize=(14, 7), width=0.8)
+        plt.title(
+            'Key Performance Metrics Impact by Major Tournament',
+            fontsize=16,
+            fontweight='bold',
+            pad=20
+        )
+        plt.xlabel('Major Tournament', fontsize=13)
+        plt.ylabel('Coefficient (Impact on Top 25% Probability)', fontsize=13)
+        plt.legend(
+            title='Performance Metric',
+            bbox_to_anchor=(1.05, 1),
+            loc='upper left',
+            fontsize=11
+        )
+        plt.axhline(y=0, color='black', linestyle='--', linewidth=1.2)
+        plt.grid(axis='y', alpha=0.3)
+        plt.xticks(rotation=0, fontsize=11)
+        plt.tight_layout()
+
+        if save_path:
+            save_path = Path(save_path)
+            save_path.parent.mkdir(parents=True, exist_ok=True)
+            plt.savefig(save_path, dpi=150, bbox_inches='tight')
+            logger.info("Saved key metrics by major plot to %s", save_path)
+
+        plt.close()
+
+    except (OSError, ValueError, KeyError) as err:
+        logger.error("Error creating key metrics by major plot: %s", err)
+        plt.close()
+        raise
+
+
+# =============================================================================
 # Script Entry Point (for testing)
 # =============================================================================
 
@@ -601,4 +988,3 @@ if __name__ == "__main__":
         import traceback
         traceback.print_exc()
         sys.exit(1)
-
