@@ -1,20 +1,19 @@
 """
 Exploratory analysis of performance metrics across Major Championships.
 
-This module analyzes golf performance data across the four majors:
-PGA Championship, US Open, The Masters, and The Open Championship.
+This module computes statistics and prepares data for visualization.
+Plotting functions are in evaluation.py.
 """
 
 import pandas as pd
-import matplotlib.pyplot as plt
-import seaborn as sns
+import numpy as np
 from pathlib import Path
 import logging
 
 logger = logging.getLogger(__name__)
 
 # =============================================================================
-# Feature Group Definitions
+# Feature Group Definitions (used across the project)
 # =============================================================================
 
 # Define feature groups by category
@@ -33,6 +32,13 @@ ALL_METRICS = [
     'total_score', 'sg_total', 'sg_ott', 'sg_app', 'sg_arg', 'sg_putt',
     'sg_t2g', 'sg_bs', 'distance', 'accuracy', 'gir',
     'prox_fw', 'prox_rgh', 'scrambling', 'great_shots', 'poor_shots'
+]
+
+# Key performance metrics for visualizations (excluding composite metrics)
+KEY_METRICS = [
+    'sg_ott', 'sg_app', 'sg_arg', 'sg_putt',
+    'distance', 'accuracy', 'gir', 'prox_fw', 'prox_rgh', 'scrambling',
+    'great_shots', 'poor_shots'
 ]
 
 
@@ -169,6 +175,40 @@ def print_winner_analysis(df):
 
 
 # =============================================================================
+# Overall Performance by Major (for all players)
+# =============================================================================
+
+def compute_overall_performance(df):
+    """
+    Compute mean performance metrics by major for ALL players.
+    This is for the pooled analysis context (not just top 25%).
+    
+    Returns a DataFrame with majors as rows and metrics as columns.
+    """
+    # Compute mean of key metrics by major
+    overall_perf = df.groupby('major')[KEY_METRICS].mean().round(3)
+    return overall_perf
+
+
+def compute_standardized_performance(df):
+    """
+    Compute standardized (z-score) mean performance by major.
+    Standardization allows comparing metrics on different scales.
+    
+    Returns a DataFrame with majors as rows and standardized metrics as columns.
+    """
+    # Standardize each metric (z-score) then compute mean by major
+    standardized = df.copy()
+    for metric in KEY_METRICS:
+        mean = df[metric].mean()
+        std = df[metric].std()
+        standardized[metric] = (df[metric] - mean) / std
+    
+    overall_std = standardized.groupby('major')[KEY_METRICS].mean().round(3)
+    return overall_std
+
+
+# =============================================================================
 # Top 25% vs Rest of Field Comparison
 # =============================================================================
 
@@ -196,7 +236,7 @@ def add_top25_flag(df):
 def compare_top25_vs_rest(df):
     """
     Compare performance metrics between top 25% finishers and the rest of the field.
-    Returns tuple: (top_25_means, rest_means, counts)
+    Returns dict with top_25_means, rest_means, difference, and counts.
     """
     # Add flag if not present
     if 'is_top_25' not in df.columns:
@@ -206,15 +246,12 @@ def compare_top25_vs_rest(df):
     top_performers = df[df['is_top_25'] == True]
     rest_of_field = df[df['is_top_25'] == False]
     
-    # Compare performance variables
-    comparison_metrics = [
-        'total_score', 'sg_total', 'sg_ott', 'sg_app', 'sg_arg', 'sg_putt',
-        'sg_t2g', 'sg_bs', 'distance', 'accuracy', 'gir',
-        'prox_fw', 'prox_rgh', 'scrambling', 'great_shots', 'poor_shots'
-    ]
+    # Compute means for key metrics
+    top_25_means = top_performers[KEY_METRICS].mean().round(3)
+    rest_means = rest_of_field[KEY_METRICS].mean().round(3)
     
-    top_25_means = top_performers[comparison_metrics].mean().round(3)
-    rest_means = rest_of_field[comparison_metrics].mean().round(3)
+    # Compute difference (top 25% - rest)
+    difference = (top_25_means - rest_means).round(3)
     
     counts = {
         'top_25': len(top_performers),
@@ -222,28 +259,57 @@ def compare_top25_vs_rest(df):
         'total': len(df)
     }
     
-    return top_25_means, rest_means, counts
+    return {
+        'top_25_means': top_25_means,
+        'rest_means': rest_means,
+        'difference': difference,
+        'counts': counts
+    }
+
+
+def compute_standardized_top25_difference(df):
+    """
+    Compute standardized difference between top 25% and rest of field.
+    This shows how many standard deviations top performers differ from the rest.
+    
+    Useful for comparing impact across metrics on different scales.
+    """
+    if 'is_top_25' not in df.columns:
+        df = add_top25_flag(df)
+    
+    top_performers = df[df['is_top_25'] == True]
+    rest_of_field = df[df['is_top_25'] == False]
+    
+    # For each metric, compute standardized difference
+    std_diff = {}
+    for metric in KEY_METRICS:
+        # Use pooled standard deviation
+        pooled_std = df[metric].std()
+        mean_diff = top_performers[metric].mean() - rest_of_field[metric].mean()
+        std_diff[metric] = mean_diff / pooled_std
+    
+    return pd.Series(std_diff).round(3)
 
 
 def print_top25_comparison(df):
     """Print comparison between top 25% finishers and rest of field."""
     df = add_top25_flag(df)
-    top_25_means, rest_means, counts = compare_top25_vs_rest(df)
+    comparison = compare_top25_vs_rest(df)
     
     print("=" * 60)
     print("TOP 25% vs REST OF FIELD COMPARISON")
     print("=" * 60)
-    print(f"Top 25% per tournament: {counts['top_25']} player-records")
-    print(f"Rest of field: {counts['rest']} player-records")
+    print(f"Top 25% per tournament: {comparison['counts']['top_25']} player-records")
+    print(f"Rest of field: {comparison['counts']['rest']} player-records")
     
     # Verify if the top 25% + the rest equals actual total players
-    print(f"Verification: {counts['top_25']} + {counts['rest']} = {counts['top_25'] + counts['rest']} (should equal {counts['total']})")
+    print(f"Verification: {comparison['counts']['top_25']} + {comparison['counts']['rest']} = {comparison['counts']['top_25'] + comparison['counts']['rest']} (should equal {comparison['counts']['total']})")
     
     print("\nTop 25% average (across all tournaments):")
-    print(top_25_means)
+    print(comparison['top_25_means'])
     
     print("\nRest of field average:")
-    print(rest_means)
+    print(comparison['rest_means'])
     print()
 
 
@@ -265,123 +331,26 @@ def compute_winner_correlations(df):
     return winner_corr
 
 
-# =============================================================================
-# Visualization Functions
-# =============================================================================
-
-def plot_metrics_boxplots(df, save_path=None):
+def compute_all_players_correlations(df):
     """
-    Create boxplots comparing performance metrics across majors.
-    One figure per category, with subplots for each metric.
+    Compute correlation matrix for all players (not just winners).
+    Useful for understanding general relationships in the data.
     """
-    # Set style
-    sns.set_style("whitegrid")
-    
-    # Define metrics by category (matching the analysis structure)
-    categories = {
-        'Scoring': ['total_score'],
-        'Off the Tee': FEATURE_GROUPS['off_tee'],
-        'Approach': FEATURE_GROUPS['approach'],
-        'Around the Green': FEATURE_GROUPS['short_game'],
-        'Putting': FEATURE_GROUPS['putting'],
-        'Tee to Green': FEATURE_GROUPS['tee_to_green'],
-        'Overall Performance': FEATURE_GROUPS['overall']
-    }
-    
-    # Create plots for each category
-    for category, metrics in categories.items():
-        n_metrics = len(metrics)
-        fig, axes = plt.subplots(1, n_metrics, figsize=(5 * n_metrics, 5))
-        fig.suptitle(f'{category}', fontsize=16, fontweight='bold')
-        
-        # Handle single metric (axes is not array)
-        if n_metrics == 1:
-            axes = [axes]
-        
-        for i, metric in enumerate(metrics):
-            sns.boxplot(data=df, x='major', y=metric, ax=axes[i])
-            axes[i].set_title(metric.replace('_', ' ').title(), fontweight='bold')
-            axes[i].set_xlabel('')
-            axes[i].tick_params(axis='x', rotation=45)
-        
-        plt.tight_layout()
-        
-        if save_path:
-            filename = f"boxplot_{category.lower().replace(' ', '_')}.png"
-            plt.savefig(Path(save_path) / filename, dpi=150, bbox_inches='tight')
-            logger.info(f"Saved {filename}")
-        
-        plt.show()
-
-
-def plot_winner_correlation_heatmap(df, save_path=None):
-    """
-    Create a heatmap showing correlations between performance metrics for winners.
-    This helps visualize which metrics are related for winning players.
-    """
-    # Calculate correlation matrix
-    winner_corr = compute_winner_correlations(df)
-    
-    # Create a heatmap to visualize correlations
-    plt.figure(figsize=(12, 10))
-    sns.heatmap(
-        winner_corr, 
-        annot=True, 
-        cmap='coolwarm', 
-        center=0,
-        fmt='.2f', 
-        square=True, 
-        linewidths=1, 
-        cbar_kws={"shrink": 0.8}
-    )
-    plt.title(
-        'Correlation Between Winner Performance Metrics',
-        fontsize=14, 
-        fontweight='bold', 
-        pad=20
-    )
-    plt.tight_layout()
-    
-    if save_path:
-        plt.savefig(save_path, dpi=150, bbox_inches='tight')
-        logger.info(f"Saved correlation heatmap to {save_path}")
-    
-    plt.show()
+    return df[ALL_METRICS].corr()
 
 
 # =============================================================================
 # Main Function - Run All Exploratory Analysis
 # =============================================================================
 
-def run_exploratory_analysis(df, save_plots=False, results_dir=None):
+def run_exploratory_analysis(df):
     """
     Run the complete exploratory analysis pipeline.
+    Returns dict with all computed results (no plotting here).
     
-    This includes:
-    - Dataset overview
-    - Metrics by major (descriptive stats)
-    - Winner analysis
-    - Top 25% vs rest comparison
-    - Winner correlations
-    - Visualizations (boxplots and heatmap)
-    
-    Args:
-        df: DataFrame with combined majors data
-        save_plots: Whether to save plots to disk
-        results_dir: Directory to save results (if save_plots=True)
-    
-    Returns:
-        dict with all analysis results
+    Plotting is done separately via evaluation.py functions.
     """
     logger.info("Starting exploratory analysis")
-    
-    # Setup results directory if saving
-    if save_plots:
-        if results_dir is None:
-            results_dir = Path(__file__).parent.parent / "results" / "1_Exploratory"
-        else:
-            results_dir = Path(results_dir)
-        results_dir.mkdir(parents=True, exist_ok=True)
     
     results = {}
     
@@ -396,29 +365,19 @@ def run_exploratory_analysis(df, save_plots=False, results_dir=None):
     print_winner_analysis(df)
     results['winner_stats'] = analyze_winners(df)
     
-    # 4. Top 25% Comparison
+    # 4. Overall Performance (all players, by major)
+    results['overall_performance'] = compute_overall_performance(df)
+    results['overall_performance_std'] = compute_standardized_performance(df)
+    
+    # 5. Top 25% Comparison
     df_with_flag = add_top25_flag(df)
     print_top25_comparison(df_with_flag)
-    top_25_means, rest_means, counts = compare_top25_vs_rest(df_with_flag)
-    results['top25_comparison'] = {
-        'top_25_means': top_25_means,
-        'rest_means': rest_means,
-        'counts': counts
-    }
+    results['top25_comparison'] = compare_top25_vs_rest(df_with_flag)
+    results['top25_std_difference'] = compute_standardized_top25_difference(df_with_flag)
     
-    # 5. Winner Correlations
+    # 6. Correlations
     results['winner_correlations'] = compute_winner_correlations(df)
-    
-    # 6. Visualizations
-    if save_plots:
-        plot_metrics_boxplots(df, save_path=results_dir)
-        plot_winner_correlation_heatmap(
-            df, 
-            save_path=results_dir / "winner_correlation_heatmap.png"
-        )
-    else:
-        plot_metrics_boxplots(df)
-        plot_winner_correlation_heatmap(df)
+    results['all_correlations'] = compute_all_players_correlations(df)
     
     logger.info("Exploratory analysis complete")
     
@@ -436,9 +395,15 @@ if __name__ == "__main__":
         format='%(asctime)s - %(levelname)s - %(message)s'
     )
     
-    # Load data
-    root = Path(__file__).parent.parent
-    df = pd.read_csv(root / "data" / "processed" / "all_majors_combined.csv")
+    # Import data loader
+    from data_loader import load_combined_data
     
-    # Run analysis (save plots to results/exploratory/)
-    results = run_exploratory_analysis(df, save_plots=True)
+    # Load data
+    df = load_combined_data()
+    
+    # Run analysis (returns results dict, no plots)
+    results = run_exploratory_analysis(df)
+    
+    # To generate plots, use evaluation.py functions:
+    # from evaluation import plot_exploratory_results
+    # plot_exploratory_results(results, df)
