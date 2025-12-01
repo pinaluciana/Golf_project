@@ -357,6 +357,12 @@ def run_exploratory_analysis(df, results_dir=None):
 # =============================================================================
 
 if __name__ == "__main__":
+    import sys
+    # Add src directory to path for imports
+    SRC_DIR = Path(__file__).parent
+    if str(SRC_DIR) not in sys.path:
+        sys.path.insert(0, str(SRC_DIR))
+    
     logging.basicConfig(level=logging.INFO,
         format='%(asctime)s - %(levelname)s - %(message)s')
     
