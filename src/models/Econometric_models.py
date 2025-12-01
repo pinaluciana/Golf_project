@@ -1,5 +1,5 @@
 """
-Econometric Models for Golf Performance Analysis.
+Econometric Models to identify Performance drivers in golf Majors Championships.
 Main goals: 
 - Explain score based on performance variables
 - Identify how skill importance varies across tournaments
@@ -13,8 +13,14 @@ This module contains three regression models:
 Using statsmodels for statistical inference (p-values, confidence intervals). Since, this module's goal is explanatory.
 """
 
+import sys
 import logging
 from pathlib import Path
+
+# Add src directory to path for local imports (to be able to find files inside src)
+SRC_DIR = Path(__file__).parent.parent
+if str(SRC_DIR) not in sys.path:
+    sys.path.insert(0, str(SRC_DIR))
 
 import pandas as pd
 import numpy as np
@@ -111,26 +117,20 @@ def fit_pooled_linear(df):
     model = sm.OLS(y, X_with_const).fit()
     
     # Extract coefficients with significance info
-    coefficients = pd.DataFrame({
-        'Feature': model.params.index[1:],
+    coefficients = pd.DataFrame({'Feature': model.params.index[1:],
         'Coefficient': model.params.values[1:],
         'Std_Error': model.bse.values[1:],
         'p_value': model.pvalues.values[1:],
-        'Significant': model.pvalues.values[1:] < 0.05
-    }).sort_values('Coefficient', key=abs, ascending=False)
+        'Significant': model.pvalues.values[1:] < 0.05}).sort_values('Coefficient', key=abs, ascending=False)
     
-    logger.info("Pooled Linear: R²=%.3f, Adj R²=%.3f", 
-                model.rsquared, model.rsquared_adj)
+    logger.info("Pooled linear regression fitted successfully")
     
     return {'model': model,
         'coefficients': coefficients,
         'scaler': scaler,
         'y_pred': model.fittedvalues,
         'y_true': y,
-        'metrics': {'r_squared': model.rsquared,
-            'adj_r_squared': model.rsquared_adj,
-            'rmse': np.sqrt(model.mse_resid),
-            'n_observations': int(model.nobs)}}
+        'n_features': len(FEATURES)}
 
 # =============================================================================
 # Model 2: Per-Major Linear Regression
@@ -153,18 +153,15 @@ def fit_per_major_linear(df):
         X_with_const = sm.add_constant(X_scaled)
         model = sm.OLS(y, X_with_const).fit()
         
-        results[major] = {
-            'model': model,
-            'r2': model.rsquared,
-            'adj_r2': model.rsquared_adj,
-            'rmse': np.sqrt(model.mse_resid),
+        results[major] = {'model': model,
+            'y_true': y,
+            'y_pred': model.fittedvalues,
             'coefficients': dict(zip(FEATURES, model.params[1:])),
             'pvalues': dict(zip(FEATURES, model.pvalues[1:])),
-            'n_obs': len(major_df)
-        }
+            'n_obs': len(major_df),
+            'n_features': len(FEATURES)}
         
-        logger.info("%s: R²=%.3f, RMSE=%.3f, n=%d", 
-                    major, model.rsquared, np.sqrt(model.mse_resid), len(major_df))
+        logger.info("%s: fitted successfully, n=%d", major, len(major_df))
     
     # Create coefficient comparison table (with features as rows and majors as columns)
     results['coefficient_comparison'] = pd.DataFrame({major: results[major]['coefficients']
@@ -199,18 +196,13 @@ def fit_pooled_logistic(df):
         'Coefficient': model.params.values[1:],
         'p_value': model.pvalues.values[1:]}).sort_values('Coefficient', key=abs, ascending=False)
     
-    # Compute metrics
-    accuracy = (y_pred == y).mean()
-    roc_auc = roc_auc_score(y, y_pred_proba)
-    
-    logger.info("Pooled Logistic: Accuracy=%.3f, ROC-AUC=%.3f", accuracy, roc_auc)
+    logger.info("Pooled logistic regression fitted successfully")
     
     return {'model': model,
         'coefficients': coefficients,
         'y_true': y,
         'y_pred': y_pred,
-        'y_pred_proba': y_pred_proba,
-        'metrics': {'accuracy': accuracy, 'roc_auc': roc_auc}}
+        'y_pred_proba': y_pred_proba}
 
 def fit_logistic_with_interactions(df):
     """
@@ -247,10 +239,7 @@ def fit_logistic_with_interactions(df):
     # Make predictions
     y_pred = model.predict(X)
     y_pred_proba = model.predict_proba(X)[:, 1]
-    
-    accuracy = (y_pred == y).mean()
-    roc_auc = roc_auc_score(y, y_pred_proba)
-    
+
     # Extract coefficients and organize by major
     coef_df = pd.DataFrame({'feature': interaction_features, 'coefficient': model.coef_[0]})
     
@@ -260,14 +249,13 @@ def fit_logistic_with_interactions(df):
     # Pivot to create comparison table (metrics as rows, majors as columns)
     comparison_table = coef_df.pivot(index='metric', columns='major', values='coefficient')
     
-    logger.info("Interaction Logistic: Accuracy=%.3f, ROC-AUC=%.3f", accuracy, roc_auc)
+    logger.info("Logistic with interactions fitted successfully")
     
     return {'model': model,
         'comparison_table': comparison_table,
         'y_true': y,
         'y_pred': y_pred,
-        'y_pred_proba': y_pred_proba,
-        'metrics': {'accuracy': accuracy, 'roc_auc': roc_auc}}
+        'y_pred_proba': y_pred_proba}
 
 # =============================================================================
 # Main Analysis Function
@@ -307,8 +295,7 @@ def run_econometric_analysis(df, results_dir=None):
     print(results['pooled_linear']['coefficients'].to_string(index=False))
     
     # Save coefficients
-    results['pooled_linear']['coefficients'].to_csv(
-        results_dir / "1_pooled_linear_coefficients.csv", index=False)
+    results['pooled_linear']['coefficients'].to_csv(results_dir / "1_pooled_linear_coefficients.csv", index=False)
     
     # =========================================================================
     # Model 2: Per-Major Linear Regression
@@ -323,9 +310,6 @@ def run_econometric_analysis(df, results_dir=None):
         r = results['per_major_linear'][major]
         print(f"\n{major}:")
         print(f"  Observations: {r['n_obs']}")
-        print(f"  R²: {r['r2']:.3f}")
-        print(f"  Adjusted R²: {r['adj_r2']:.3f}")
-        print(f"  RMSE: {r['rmse']:.3f} strokes")
     
     print("\nCoefficient Comparison Across Majors:")
     print(results['per_major_linear']['coefficient_comparison'].round(2))
@@ -343,17 +327,9 @@ def run_econometric_analysis(df, results_dir=None):
     # Add top 25% target
     df = create_top25_target(df)
     
-    # Part 1: Pooled Logistic
+    # Pooled Logistic
     print("\n--- Part 1: Pooled Logistic Regression ---")
     results['pooled_logistic'] = fit_pooled_logistic(df)
-    
-    print(f"\nAccuracy: {results['pooled_logistic']['metrics']['accuracy']:.3f}")
-    print(f"ROC-AUC: {results['pooled_logistic']['metrics']['roc_auc']:.3f}")
-    
-    print("\nClassification Report:")
-    print(classification_report(results['pooled_logistic']['y_true'],
-        results['pooled_logistic']['y_pred'],
-        target_names=['Rest of Field', 'Top 25%']))
     
     print("\nFeature Importance (Logistic Coefficients):")
     print(results['pooled_logistic']['coefficients'].to_string(index=False))
@@ -362,12 +338,9 @@ def run_econometric_analysis(df, results_dir=None):
     results['pooled_logistic']['coefficients'].to_csv(
         results_dir / "3a_logistic_coefficients.csv", index=False)
     
-    # Part 2: Logistic regression extension with Major Interactions
+    # Logistic regression extension with Major Interactions
     print("\n--- Part 2: Logistic with Major Interactions ---")
     results['interaction_logistic'] = fit_logistic_with_interactions(df)
-    
-    print(f"\nAccuracy: {results['interaction_logistic']['metrics']['accuracy']:.3f}")
-    print(f"ROC-AUC: {results['interaction_logistic']['metrics']['roc_auc']:.3f}")
     
     print("\nCoefficient Comparison Across Majors:")
     print(results['interaction_logistic']['comparison_table'].round(3))
@@ -384,7 +357,8 @@ def run_econometric_analysis(df, results_dir=None):
     results['interaction_logistic']['comparison_table'].to_csv(
         results_dir / "3b_interaction_coefficients.csv")
     
-    logger.info("Econometric analysis complete. Results saved to %s", results_dir)
+    logger.info("Econometric analysis complete. Coefficients saved to %s", results_dir)
+    print("\nNOTE: Use evaluation.py to compute metrics (R², RMSE, Accuracy, etc.)")
     
     return results
 
@@ -397,7 +371,9 @@ if __name__ == "__main__":
     
     from data_loader import load_combined_data
     from visualization import (plot_coefficients, plot_residuals, plot_actual_vs_predicted, plot_coefficient_heatmap, plot_confusion_matrix, plot_roc_curve, plot_interaction_heatmap)
-    
+
+    from evaluation import compute_regression_metrics, compute_classification_metrics    
+
     # Load data
     logger.info("Loading combined dataset")
     data = load_combined_data()
@@ -405,37 +381,3 @@ if __name__ == "__main__":
     
     # Run analysis
     results = run_econometric_analysis(data)
-    
-    # Generate plots
-    print("\nGenerating plots...")
-    fig_dir = Path(__file__).parent.parent / "results" / "2_Econometric_models" / "figures"
-    fig_dir.mkdir(parents=True, exist_ok=True)
-    
-    # Pooled linear plots
-    plot_coefficients(results['pooled_linear']['coefficients'],
-        title='Pooled Linear Regression: Feature Importance',
-        save_path=fig_dir / "1_pooled_linear_coefficients.png")
-    plot_residuals(results['pooled_linear']['y_true'], results['pooled_linear']['y_pred'],
-        save_path=fig_dir / "1_pooled_linear_residuals.png")
-    plot_actual_vs_predicted(results['pooled_linear']['y_true'], results['pooled_linear']['y_pred'],
-        save_path=fig_dir / "1_pooled_linear_actual_vs_pred.png")
-    
-    # Per-major heatmap
-    plot_coefficient_heatmap(results['per_major_linear']['coefficient_comparison'],
-        title='Per-Major Linear Regression: Coefficient Comparison',
-        save_path=fig_dir / "2_per_major_heatmap.png")
-    
-    # Logistic regression plots
-    plot_coefficients(results['pooled_logistic']['coefficients'],
-        title='Logistic Regression: Feature Importance',
-        save_path=fig_dir / "3a_logistic_coefficients.png")
-    plot_confusion_matrix(results['pooled_logistic']['y_true'], results['pooled_logistic']['y_pred'],
-        save_path=fig_dir / "3a_confusion_matrix.png")
-    plot_roc_curve(results['pooled_logistic']['y_true'], results['pooled_logistic']['y_pred_proba'], results['pooled_logistic']['metrics']['roc_auc'],
-        save_path=fig_dir / "3a_roc_curve.png")
-    
-    # Interaction heatmap
-    plot_interaction_heatmap(results['interaction_logistic']['comparison_table'],
-        save_path=fig_dir / "3b_interaction_heatmap.png")
-    
-    print(f"\nAll results saved to: {fig_dir.parent}")
