@@ -10,7 +10,7 @@ This module contains three regression models:
 2. Per-Major Linear Regression: how skill importance varies by major
 3. Logistic Regression (with extension on Major Interactions): predicting top 25% finishers
 
-Using statsmodels for statistical inference (p-values, confidence intervals). Since, this module's goal is explanatory.
+Using mainly the statsmodels module since, this file's goal is explanatory and not predictive.
 """
 
 import sys
@@ -116,12 +116,14 @@ def fit_pooled_linear(df):
     # Fit model using statsmodels for p-values and confidence intervals
     model = sm.OLS(y, X_with_const).fit()
     
-    # Extract coefficients with significance info
-    coefficients = pd.DataFrame({'Feature': model.params.index[1:],
-        'Coefficient': model.params.values[1:],
-        'Std_Error': model.bse.values[1:],
-        'p_value': model.pvalues.values[1:],
-        'Significant': model.pvalues.values[1:] < 0.05}).sort_values('Coefficient', key=abs, ascending=False)
+    # Extract coefficients with statistical info
+    coefficients = pd.DataFrame({'Feature': model.params.index,
+        'Coefficient': model.params.values,
+        'Std_Error': model.bse.values,
+        't_value': model.tvalues.values,
+        'p_value': model.pvalues.values,
+        'CI_lower': model.conf_int().iloc[:, 0].values,
+        'CI_upper': model.conf_int().iloc[:, 1].values})
     
     logger.info("Pooled linear regression fitted successfully")
     
@@ -153,19 +155,34 @@ def fit_per_major_linear(df):
         X_with_const = sm.add_constant(X_scaled)
         model = sm.OLS(y, X_with_const).fit()
         
+        # Create comprehensive coefficients DataFrame for this major
+        major_coefficients = pd.DataFrame({'Feature': model.params.index,
+            'Coefficient': model.params.values,
+            'Std_Error': model.bse.values,
+            't_value': model.tvalues.values,
+            'p_value': model.pvalues.values,
+            'CI_lower': model.conf_int().iloc[:, 0].values,
+            'CI_upper': model.conf_int().iloc[:, 1].values})
+        
         results[major] = {'model': model,
             'y_true': y,
             'y_pred': model.fittedvalues,
-            'coefficients': dict(zip(FEATURES, model.params[1:])),
-            'pvalues': dict(zip(FEATURES, model.pvalues[1:])),
+            'coefficients_df': major_coefficients,
             'n_obs': len(major_df),
             'n_features': len(FEATURES)}
         
         logger.info("%s: fitted successfully, n=%d", major, len(major_df))
     
     # Create coefficient comparison table (with features as rows and majors as columns)
-    results['coefficient_comparison'] = pd.DataFrame({major: results[major]['coefficients']
-        for major in df['major'].unique()})
+    # Use only the Coefficient column from each major's DataFrame
+    coef_dict = {}
+    for major in df['major'].unique():
+        coef_df = results[major]['coefficients_df']
+        # Create a Series with Feature as index and Coefficient as values (exclude constant)
+        coef_series = coef_df[coef_df['Feature'] != 'const'].set_index('Feature')['Coefficient']
+        coef_dict[major] = coef_series
+    
+    results['coefficient_comparison'] = pd.DataFrame(coef_dict)
     return results
 
 # =============================================================================
@@ -192,9 +209,13 @@ def fit_pooled_logistic(df):
     y_pred = (y_pred_proba >= 0.5).astype(int)
     
     # Extract the coefficients
-    coefficients = pd.DataFrame({'Feature': model.params.index[1:],
-        'Coefficient': model.params.values[1:],
-        'p_value': model.pvalues.values[1:]}).sort_values('Coefficient', key=abs, ascending=False)
+    coefficients = pd.DataFrame({'Feature': model.params.index,
+        'Coefficient': model.params.values,
+        'Std_Error': model.bse.values,
+        'z_value': model.tvalues.values,
+        'p_value': model.pvalues.values,
+        'CI_lower': model.conf_int().iloc[:, 0].values,
+        'CI_upper': model.conf_int().iloc[:, 1].values})
     
     logger.info("Pooled logistic regression fitted successfully")
     
@@ -257,108 +278,69 @@ def fit_logistic_with_interactions(df):
         'y_pred': y_pred,
         'y_pred_proba': y_pred_proba}
 
-# =============================================================================
-# Main Analysis Function
-# =============================================================================
-
+    # =============================================================================
+    # Main Analysis Function
+    # =============================================================================
 def run_econometric_analysis(df, results_dir=None):
     """
-    Run all econometric models and save results.
-    Args:
-        df: DataFrame with golf performance data
-        results_dir: Directory to save results
-    Returns:
-        Dictionary with all model results
+    Run all econometric models and save results to CSV.
     """
     logger.info("Starting econometric analysis")
     
-    # Setup results directory
+    # Setup results directory (golf_project/results/2_Econometric_models)
     if results_dir is None:
-        results_dir = Path(__file__).parent.parent / "results" / "2_Econometric_models"
+        results_dir = Path(__file__).parent.parent.parent / "results" / "2_Econometric_models"
     else:
         results_dir = Path(results_dir)
     results_dir.mkdir(parents=True, exist_ok=True)
-    results = {}
     
+    results = {}
+
     # =========================================================================
     # Model 1: Pooled Linear Regression
     # =========================================================================
-    print("\n" + "=" * 70)
-    print("MODEL 1: POOLED LINEAR REGRESSION")
-    print("=" * 70)
-    
+    logger.info("Running Model 1: Pooled Linear Regression")
     results['pooled_linear'] = fit_pooled_linear(df)
-    print(results['pooled_linear']['model'].summary())
     
-    print("\nFeature Importance (Standardized Coefficients):")
-    print("Note: Coefficients show impact of 1 standard deviation change")
-    print(results['pooled_linear']['coefficients'].to_string(index=False))
-    
-    # Save coefficients
-    results['pooled_linear']['coefficients'].to_csv(results_dir / "1_pooled_linear_coefficients.csv", index=False)
+    # Save comprehensive coefficients to CSV
+    results['pooled_linear']['coefficients'].to_csv(
+        results_dir / "1_pooled_linear_coefficients.csv", index=False)
     
     # =========================================================================
     # Model 2: Per-Major Linear Regression
     # =========================================================================
-    print("\n" + "=" * 70)
-    print("MODEL 2: PER-MAJOR LINEAR REGRESSION")
-    print("=" * 70)
-    
+    logger.info("Running Model 2: Per-Major Linear Regression")
     results['per_major_linear'] = fit_per_major_linear(df)
     
+    # Save each major's coefficients to separate CSV
     for major in df['major'].unique():
-        r = results['per_major_linear'][major]
-        print(f"\n{major}:")
-        print(f"  Observations: {r['n_obs']}")
+        safe_major_name = major.replace(' ', '_').replace("'", "")
+        results['per_major_linear'][major]['coefficients_df'].to_csv(
+            results_dir / f"2_per_major_{safe_major_name}_coefficients.csv", index=False)
     
-    print("\nCoefficient Comparison Across Majors:")
-    print(results['per_major_linear']['coefficient_comparison'].round(2))
-    
-    # Save coefficient comparison
-    results['per_major_linear']['coefficient_comparison'].to_csv(results_dir / "2_per_major_coefficients.csv")
+    # Save coefficient comparison table
+    results['per_major_linear']['coefficient_comparison'].to_csv(
+        results_dir / "2_per_major_comparison.csv")
     
     # =========================================================================
     # Model 3: Logistic Regression
     # =========================================================================
-    print("\n" + "=" * 70)
-    print("MODEL 3: LOGISTIC REGRESSION")
-    print("=" * 70)
+    logger.info("Running Model 3: Logistic Regression")
     
     # Add top 25% target
     df = create_top25_target(df)
     
-    # Pooled Logistic
-    print("\n--- Part 1: Pooled Logistic Regression ---")
+    # Part 1: Pooled Logistic
     results['pooled_logistic'] = fit_pooled_logistic(df)
-    
-    print("\nFeature Importance (Logistic Coefficients):")
-    print(results['pooled_logistic']['coefficients'].to_string(index=False))
-    
-    # Save pooled logistic coefficients
     results['pooled_logistic']['coefficients'].to_csv(
         results_dir / "3a_logistic_coefficients.csv", index=False)
     
-    # Logistic regression extension with Major Interactions
-    print("\n--- Part 2: Logistic with Major Interactions ---")
+    # Part 2: Logistic with Major Interactions
     results['interaction_logistic'] = fit_logistic_with_interactions(df)
-    
-    print("\nCoefficient Comparison Across Majors:")
-    print(results['interaction_logistic']['comparison_table'].round(3))
-    
-    # Top 3 metrics by major
-    print("\nTop 3 Metrics by Major (Absolute Impact):")
-    for major in results['interaction_logistic']['comparison_table'].columns:
-        top3 = results['interaction_logistic']['comparison_table'][major].abs().nlargest(3)
-        print(f"\n{major}:")
-        for metric, coef in top3.items():
-            print(f"  {metric}: {coef:.3f}")
-    
-    # Save interaction coefficients
     results['interaction_logistic']['comparison_table'].to_csv(
         results_dir / "3b_interaction_coefficients.csv")
     
-    logger.info("Econometric analysis complete. Coefficients saved to %s", results_dir)
-    print("\nNOTE: Use evaluation.py to compute metrics (R², RMSE, Accuracy, etc.)")
+    logger.info("Econometric analysis complete. Results saved to %s", results_dir)
     
     return results
 
@@ -369,15 +351,15 @@ def run_econometric_analysis(df, results_dir=None):
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
     
-    from data_loader import load_combined_data
-    from visualization import (plot_coefficients, plot_residuals, plot_actual_vs_predicted, plot_coefficient_heatmap, plot_confusion_matrix, plot_roc_curve, plot_interaction_heatmap)
-
-    from evaluation import compute_regression_metrics, compute_classification_metrics    
+    from data_loader import load_combined_data   
 
     # Load data
     logger.info("Loading combined dataset")
     data = load_combined_data()
     logger.info("Loaded %d player-tournament records", len(data))
     
-    # Run analysis
+    # Run analysis (results saded to CSV)
     results = run_econometric_analysis(data)
+    
+    logger.info("Done with Econometric models")
+
