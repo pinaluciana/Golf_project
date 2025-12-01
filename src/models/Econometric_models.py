@@ -25,77 +25,12 @@ if str(SRC_DIR) not in sys.path:
 import pandas as pd
 import numpy as np
 import statsmodels.api as sm
-from sklearn.preprocessing import StandardScaler
 from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import roc_auc_score, classification_report
+
+# Import shared feature definitions and data preparation from feature_engineering
+from feature_engineering import FEATURES, prepare_features, create_top25_target
 
 logger = logging.getLogger(__name__)
-
-# =============================================================================
-# Feature Definitions
-# =============================================================================
-
-# Performance metrics that aren't taken into consideration (to avoid multicollinearity):
-# - sg_total: bc it's the sum of all strokes gained metrics
-# - sg_t2g: sum of sg_ott + sg_app + sg_arg
-# - sg_bs: sum of sg_ott + sg_app
-
-OFF_TEE = ['distance', 'accuracy', 'sg_ott']
-APPROACH = ['sg_app', 'prox_fw', 'prox_rgh']
-SHORT_GAME = ['sg_arg', 'scrambling']
-PUTTING = ['sg_putt']
-BALL_STRIKING = ['gir']
-SHOT_QUALITY = ['great_shots', 'poor_shots']
-
-# Combine all features together
-FEATURES = OFF_TEE + APPROACH + SHORT_GAME + PUTTING + BALL_STRIKING + SHOT_QUALITY
-
-# =============================================================================
-# Data Preparation
-# =============================================================================
-
-def prepare_features(df, features=None):
-    """
-    Prepare and standardize features for regression. Standardize: so we're able to compare coefficients across features on different scales.
-    """
-    if features is None:
-        features = FEATURES
-    
-    X = df[features]
-    y = df['total_score']
-    
-    # Check for missing values and drop if found
-    if X.isnull().any().any():
-        logger.warning("Missing values detected, dropping rows")
-        valid_idx = X.dropna().index
-        X = X.loc[valid_idx]
-        y = y.loc[valid_idx]
-    
-    # Standardize features since they're on different scales
-    scaler = StandardScaler()
-    X_scaled = pd.DataFrame(scaler.fit_transform(X), columns=features, index=X.index)
-    
-    return X_scaled, y, scaler
-
-def create_top25_target(df):
-    """
-    Create binary target indicating top 25% finish per tournament. Top 25% is calculated per tournament (major & year) based on total_score.
-    Note: lower scores are better in golf, so top 25% = score <= 25th percentile.
-    """
-    df = df.copy()
-    
-    df['tournament_25th_percentile'] = df.groupby(
-        ['major', 'year'])['total_score'].transform(lambda x: x.quantile(0.25))
-    
-    df['top_25'] = (df['total_score'] <= df['tournament_25th_percentile']).astype(int)
-    
-    logger.info("Created top 25%% target:")
-    logger.info("  Top 25%%: %d (%.1f%%)", df['top_25'].sum(), 
-                df['top_25'].sum() / len(df) * 100)
-    logger.info("  Rest of field: %d (%.1f%%)", (df['top_25'] == 0).sum(),
-                (df['top_25'] == 0).sum() / len(df) * 100)
-    
-    return df
 
 # =============================================================================
 # Model 1: Pooled Linear Regression
