@@ -1,6 +1,5 @@
 """
 Exploratory Analysis of Golf Performance Variables in Major Championships.
-
 This module computes descriptive statistics and generates exploratory visualizations.
 Model-related plots are in visualization.py.
 """
@@ -251,6 +250,37 @@ def plot_performance_heatmap(df, save_path=None):
         logger.info("Saved performance heatmap to %s", save_path)
     plt.close()
 
+def plot_distribution_dashboard(df, save_path=None):
+    """
+    Create a single dashboard with boxplots for all performance metrics to show the distribution of each variable (instead of having 12 separate plots).
+    """
+    fig, axes = plt.subplots(3, 4, figsize=(16, 10))
+    axes = axes.flatten()
+    
+    for i, metric in enumerate(KEY_METRICS):
+        ax = axes[i]
+        
+        # Create boxplot by major
+        df.boxplot(column=metric, by='major', ax=ax, grid=False)
+        
+        ax.set_title(metric, fontsize=11, fontweight='bold')
+        ax.set_xlabel('')
+        ax.set_ylabel('')
+        
+        # Rotate x labels for readability
+        ax.set_xticklabels(ax.get_xticklabels(), rotation=45, ha='right', fontsize=8)
+    
+    # Remove the automatic suptitle that pandas adds
+    plt.suptitle('Performance Metrics Distribution by Major', 
+                 fontsize=14, fontweight='bold', y=1.02)
+    plt.tight_layout()
+    
+    if save_path:
+        Path(save_path).parent.mkdir(parents=True, exist_ok=True)
+        plt.savefig(save_path, dpi=150, bbox_inches='tight')
+        logger.info("Saved distribution dashboard to %s", save_path)
+    plt.close()
+
 # =============================================================================
 # Main Analysis Function
 # =============================================================================
@@ -301,8 +331,11 @@ def run_exploratory_analysis(df, results_dir=None):
     
     # 5. Performance by Major (create heatmap)
     plot_performance_heatmap(df, save_path=figures_dir / "performance_by_major.png")
-    
-    # 6. Top 25% vs Rest Analysis
+
+     # 6. Distribution Dashboard - single figure with all boxplots
+    plot_distribution_dashboard(df, save_path=figures_dir / "distribution_dashboard.png")
+
+    # 7. Top 25% vs Rest Analysis
     df_with_flag = add_top25_flag(df)
     results['top25_comparison'] = compare_top25_vs_rest(df_with_flag)
     results['top25_std_diff'] = compute_standardized_top25_difference(df_with_flag)
