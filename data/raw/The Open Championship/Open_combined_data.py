@@ -33,7 +33,7 @@ def main():
     all_open.to_csv(output_path, index=False)
 
     print(f"Saved combined file to {output_path}")
-        print(f"Total rows: {len(all_open)}")
+    print(f"Total rows: {len(all_open)}")
     print(f"Years included: {sorted(all_open['year'].unique())}")
     print(all_open.head())
 
