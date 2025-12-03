@@ -16,18 +16,6 @@ import seaborn as sns
 
 logger = logging.getLogger(__name__)
 
-# =============================================================================
-# Feature Definitions (used across the project)
-# =============================================================================
-
-# Group metrics by type, matches how golf performance is typically analyzed
-FEATURE_GROUPS = {'off_tee': ['distance', 'accuracy', 'sg_ott'],
-    'approach': ['sg_app', 'prox_fw', 'prox_rgh'],
-    'short_game': ['sg_arg', 'scrambling'],
-    'putting': ['sg_putt'],
-    'tee_to_green': ['sg_bs', 'gir', 'sg_t2g'],
-    'overall': ['sg_total', 'great_shots', 'poor_shots']}
-
 # All metrics for correlation analysis
 ALL_METRICS = ['total_score', 'sg_total', 'sg_ott', 'sg_app', 'sg_arg', 'sg_putt', 'sg_t2g', 'sg_bs', 'distance', 'accuracy', 'gir', 'prox_fw', 'prox_rgh', 'scrambling', 'great_shots', 'poor_shots']
 
@@ -70,21 +58,6 @@ def compute_metrics_by_major(df):
     for group_name, metrics in FEATURE_GROUPS.items():
         results[group_name] = df.groupby('major')[metrics].agg(['mean', 'std']).round(3)
     return results
-
-def print_metrics_by_major(df):
-    """Print descriptive statistics for all metrics grouped by major."""
-    results = compute_metrics_by_major(df)
-    
-    print("=" * 60)
-    print("PERFORMANCE METRICS BY MAJOR")
-    print("=" * 60)
-    
-    labels = {'scoring': 'SCORING', 'off_tee': 'OFF THE TEE', 'approach': 'APPROACH', 'short_game': 'AROUND THE GREEN', 'putting': 'PUTTING', 'tee_to_green': 'TEE TO GREEN', 'overall': 'OVERALL PERFORMANCE'}
-    
-    for key, label in labels.items():
-        print(f"\n{label}")
-        print(results[key])
-    print()
 
 # =============================================================================
 # Winner Analysis
@@ -286,16 +259,8 @@ def plot_distribution_dashboard(df, save_path=None):
 # =============================================================================
 
 def run_exploratory_analysis(df, results_dir=None):
-    """
-    Run complete exploratory analysis with plots.
+    """Run exploratory analysis, save csv data inside results and save plots inside visualizations."""
     
-    Args:
-        df: DataFrame with golf performance data
-        results_dir: Directory to save results (optional)
-    
-    Returns:
-        Dictionary with all computed results
-    """
     logger.info("Starting exploratory analysis")
     
     # Setup results directory
@@ -306,33 +271,33 @@ def run_exploratory_analysis(df, results_dir=None):
     
     figures_dir = results_dir / "figures"
     figures_dir.mkdir(parents=True, exist_ok=True)
+    results_dir.mkdir(parents=True, exist_ok=True)
     
     results = {}
     
-    # 1. Dataset Overview
+    # 1. Dataset Overview (print to terminal)
     print_dataset_overview(df)
     
-    # 2. Metrics by Major
-    print_metrics_by_major(df)
-    results['metrics_by_major'] = compute_metrics_by_major(df)
+    # 2. Metrics by Major (save to csv)
+    logger.info("Computing performance metrics by major...")
+    metrics_df = df.groupby('major')[ALL_METRICS].agg(['mean', 'std']).round(3)
+    metrics_df.to_csv(results_dir / "metrics_by_major.csv")
+    logger.info("Saved metrics to %s", results_dir / "metrics_by_major.csv")
     
-    # 3. Winner Analysis
+    # 3. Winner Analysis (save to csv)
     results['winner_stats'] = analyze_winners(df)
-    print("WINNING SCORES BY MAJOR:")
-    print(results['winner_stats'])
-    print()
+    results['winner_stats'].to_csv(results_dir / "winning_scores_by_major.csv")
+    logger.info("Saved winning scores to %s", results_dir / "winning_scores_by_major.csv")
     
     # 4. Correlation Analysis (create heatmap)
     results['correlations'] = compute_correlations(df)
-    plot_correlation_heatmap(
-        results['correlations'],
-        save_path=figures_dir / "correlation_heatmap.png"
-    )
+    plot_correlation_heatmap(results['correlations'],
+        save_path=figures_dir / "correlation_heatmap.png")
     
     # 5. Performance by Major (create heatmap)
     plot_performance_heatmap(df, save_path=figures_dir / "performance_by_major.png")
 
-     # 6. Distribution Dashboard - single figure with all boxplots
+     # 6. Distribution Dashboard (one figure with all metrics boxplots)
     plot_distribution_dashboard(df, save_path=figures_dir / "distribution_dashboard.png")
 
     # 7. Top 25% vs Rest Analysis
@@ -341,13 +306,6 @@ def run_exploratory_analysis(df, results_dir=None):
     results['top25_std_diff'] = compute_standardized_top25_difference(df_with_flag)
     
     plot_top25_comparison(results['top25_std_diff'], save_path=figures_dir / "top25_comparison.png")
-    
-    # Print top 25% summary
-    counts = results['top25_comparison']['counts']
-    print(f"Top 25% per tournament: {counts['top_25']} player-records")
-    print(f"Rest of field: {counts['rest']} player-records")
-    print(f"Verification: {counts['top_25']} + {counts['rest']} = "
-          f"{counts['top_25'] + counts['rest']} (should equal {counts['total']})")
     
     logger.info("Exploratory analysis complete. Results saved to %s", results_dir)
     return results
