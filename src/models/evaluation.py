@@ -80,31 +80,39 @@ def print_classification_metrics(model_name, metrics, y_true=None, y_pred=None):
 def create_combined_feature_importance(rf_importance, xgb_importance, shap_importance, save_path):
     """Create one combined feature importance CSV with all models and rankings."""
     
-    # Get top 10 from each model
-    rf_top10 = rf_importance.head(10).copy()
-    xgb_top10 = xgb_importance.head(10).copy()
-    shap_top10 = shap_importance.head(10).copy()
+    # Use all features
+    rf_all = rf_importance.copy()
+    xgb_all = xgb_importance.copy()
+    shap_all = shap_importance.copy()
     
     # Add rankings
-    rf_top10['RF_Rank'] = range(1, len(rf_top10) + 1)
-    xgb_top10['XGB_Rank'] = range(1, len(xgb_top10) + 1)
-    shap_top10['SHAP_Rank'] = range(1, len(shap_top10) + 1)
+    rf_all['RF_Rank'] = range(1, len(rf_all) + 1)
+    xgb_all['XGB_Rank'] = range(1, len(xgb_all) + 1)
+    shap_all['SHAP_Rank'] = range(1, len(shap_all) + 1)
     
     # Rename importance columns
-    rf_top10 = rf_top10.rename(columns={'Importance': 'RF_Importance'})
-    xgb_top10 = xgb_top10.rename(columns={'Importance': 'XGB_Importance'})
-    shap_top10 = shap_top10.rename(columns={'SHAP_Importance': 'SHAP_Importance'})
+    rf_all = rf_all.rename(columns={'Importance': 'RF_Importance'})
+    xgb_all = xgb_all.rename(columns={'Importance': 'XGB_Importance'})
+    shap_all = shap_all.rename(columns={'SHAP_Importance': 'SHAP_Importance'})
     
-    # Get all unique features from top 10
-    all_features = set(rf_top10['Feature']) | set(xgb_top10['Feature']) | set(shap_top10['Feature'])
+    # Get all unique features
+    all_features = set(rf_all['Feature']) | set(xgb_all['Feature']) | set(shap_all['Feature'])
     
     # Create combined dataframe
     combined = pd.DataFrame({'Feature': sorted(all_features)})
     
+    # Filter out the Major dummy variables bc they're not meaningful for interpretation
+    combined = combined[~combined['Feature'].str.startswith('major_')]
+
     # Merge each model's data
-    combined = combined.merge(rf_top10[['Feature', 'RF_Importance', 'RF_Rank']], on='Feature', how='left')
-    combined = combined.merge(xgb_top10[['Feature', 'XGB_Importance', 'XGB_Rank']], on='Feature', how='left')
-    combined = combined.merge(shap_top10[['Feature', 'SHAP_Importance', 'SHAP_Rank']], on='Feature', how='left')
+    combined = combined.merge(rf_all[['Feature', 'RF_Importance', 'RF_Rank']], on='Feature', how='left')
+    combined = combined.merge(xgb_all[['Feature', 'XGB_Importance', 'XGB_Rank']], on='Feature', how='left')
+    combined = combined.merge(shap_all[['Feature', 'SHAP_Importance', 'SHAP_Rank']], on='Feature', how='left')
+    
+    # Sort by average rank (features with best average ranking first)
+    combined['Avg_Rank'] = combined[['RF_Rank', 'XGB_Rank', 'SHAP_Rank']].mean(axis=1)
+    combined = combined.sort_values('Avg_Rank')
+    combined = combined.drop('Avg_Rank', axis=1)
     
     # Replace NaN with "-" for missing features
     combined = combined.fillna('-')
@@ -112,13 +120,13 @@ def create_combined_feature_importance(rf_importance, xgb_importance, shap_impor
     # Reorder columns
     combined = combined[['Feature', 'RF_Importance', 'RF_Rank', 'XGB_Importance', 'XGB_Rank', 'SHAP_Importance', 'SHAP_Rank']]
     
-    # Save top 10 to CSV
+    # Save to CSV
     save_path = Path(save_path)
     save_path.parent.mkdir(parents=True, exist_ok=True)
     combined.to_csv(save_path, index=False)
     logger.info("Saved combined feature importance to %s", save_path)
 
-    # Print only top 5
+    # Print only top 5 for terminal output
     print("\n  Top 5 Features by Model:")
     print("\n  Random Forest:")
     for idx, row in rf_importance.head(5).iterrows():
