@@ -307,14 +307,23 @@ def run_ml_analysis(df, results_dir=None):
     all_features = [f for f in FEATURES_WITH_MAJOR if not f.startswith('major_')]
     shap_combined = pd.DataFrame({'Feature': all_features})
 
-    # Add a column for each major's SHAP importance
+    # Add columns for each Major's shap importance and rank
     for major, major_results in results['shap_per_major'].items():
-        # Get the SHAP importance for this major
-        major_df = major_results['shap_importance']
-        # Merge it into the combined dataframe
-        shap_combined = shap_combined.merge(major_df[['Feature', 'SHAP_Importance']], on='Feature', how='left')
-        # Rename the column to show which major it's from
-        shap_combined.rename(columns={'SHAP_Importance': f'SHAP_{major}'}, inplace=True)
+        # Get the SHAP importance for this major (already sorted by importance)
+        major_df = major_results['shap_importance'].copy()
+        
+        # Filter out major dummies from this dataframe
+        major_df = major_df[~major_df['Feature'].str.startswith('major_')]
+        
+        # Add rank (1 = highest importance)
+        major_df['Rank'] = range(1, len(major_df) + 1)
+        
+        # Merge importance and rank into combined dataframe
+        shap_combined = shap_combined.merge(major_df[['Feature', 'SHAP_Importance', 'Rank']], on='Feature', how='left')
+        
+        # Rename columns to show which major they're from
+        safe_major_name = major.replace(' ', '_')
+        shap_combined.rename(columns={'SHAP_Importance': f'SHAP_{safe_major_name}', 'Rank': f'Rank_{safe_major_name}'}, inplace=True)
     
     # Save to single CSV
     shap_combined.to_csv(results_dir / "4_shap_per_major_comparison.csv", index=False)
