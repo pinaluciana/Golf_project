@@ -350,6 +350,7 @@ if __name__ == "__main__":
     
     from data_loader import load_combined_data
     from evaluation import evaluate_ml_models
+    from visualization import create_ml_visualizations
     
     # Load data
     logger.info("Loading combined dataset")
@@ -365,4 +366,7 @@ if __name__ == "__main__":
     results_dir = Path(__file__).parent.parent.parent / "results" / "3_ML_models"
     evaluate_ml_models(results, results_dir)
     
+    # Create visualizations (saved to figures folder inside results)
+    create_ml_visualizations(results, results_dir) 
+
     logger.info("The machine learning models' evaluation has been completed!")

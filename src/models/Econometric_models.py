@@ -286,15 +286,21 @@ def run_econometric_analysis(df, results_dir=None):
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
     
-    from data_loader import load_combined_data   
+    from data_loader import load_combined_data 
+    from visualization import create_econometric_visualizations
 
     # Load data
     logger.info("Loading combined dataset")
     data = load_combined_data()
     logger.info("Loaded %d player-tournament records", len(data))
     
-    # Run analysis (results saded to CSV)
+    # Run analysis (results saved to CSV)
     results = run_econometric_analysis(data)
+
+    # Create visualisations (saved to figures folder inside results)
+    results_dir = Path(__file__).parent.parent.parent / "results" / "2_Econometric_models"
+    create_econometric_visualizations(results, results_dir)
+
     
     logger.info("Done with Econometric models")
 
