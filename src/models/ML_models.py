@@ -124,7 +124,7 @@ def fit_xgboost(X_train, X_test, y_train, y_test, n_estimators=100, max_depth=6,
     return {'model': model,'y_test': y_test, 'y_pred': y_pred, 'y_pred_proba': y_pred_proba, 'importance': importance_df}
 
 # =============================================================================
-# SHAP Analysis (Stretch Goal)
+# SHAP Analysis
 # =============================================================================
 
 def compute_shap_values(model, X_test):
