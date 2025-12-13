@@ -1,7 +1,7 @@
 """
 Feature Engineering for Golf Performance Analysis.
-This file contains shared feature definitions and data preparation functions that will be used for both econometric and ML models. 
-In order to avoid code duplication.
+This file contains shared feature definitions and data preparation functions that will be used for both econometric and ML models, in order to avoid code duplication.
+Note that this file is not used for the exploratory analysis.
 
 Note: Missing value handling is already taken care of in data_loader.py and combine_all_majors.py.
 """
