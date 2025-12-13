@@ -50,7 +50,6 @@ FEATURES_WITH_MAJOR = FEATURES + MAJOR_COLS
 
 def prepare_ml_data(df):
     """Prepare data with temporal split: train on 2020-2024, test on 2025."""
-    logger.info("Preparing data with temporal split")
     
     # Create the desired top_25 target using the feature_engineering function
     df = create_top25_target(df)
@@ -68,9 +67,6 @@ def prepare_ml_data(df):
     # Add the major dummies (unscaled) to the scaled performance features
     X_train_dummies = train_df.loc[X_train_perf.index, MAJOR_COLS]
     X_train = pd.concat([X_train_perf, X_train_dummies], axis=1)
-
-    logger.info("X_train shape: %s, columns: %d", X_train.shape, len(X_train.columns))
-    logger.info("X_train columns: %s", X_train.columns.tolist())
     
     # Apply the same scaler to the test data (in order that it fits on trained data only and therefore avoid data leakage)
     # Only select the features columns 
@@ -84,14 +80,8 @@ def prepare_ml_data(df):
     X_test_perf = pd.DataFrame(X_test_scaled, columns=FEATURES, index=test_features.index)
     X_test_dummies = test_df.loc[X_test_perf.index, MAJOR_COLS]
     X_test = pd.concat([X_test_perf, X_test_dummies], axis=1)
-
-    logger.info("X_test shape: %s, columns: %d", X_test.shape, len(X_test.columns))
-    logger.info("X_test columns: %s", X_test.columns.tolist())
     
     y_test = test_df.loc[X_test.index, 'top_25']
-    
-    logger.info("Train: %d records (2020-2024), Test: %d records (2025)", len(X_train), len(X_test))
-    logger.info("Class balance - Train: %.1f%% top 25%%, Test: %.1f%% top 25%%", y_train.mean() * 100, y_test.mean() * 100)
     
     return X_train, X_test, y_train, y_test
 
@@ -104,36 +94,23 @@ def fit_random_forest(X_train, X_test, y_train, y_test, n_estimators=100, max_de
     Fit Random Forest classifier. 
     Goal: to capture non-linear relationships and provide robust feature importance.
     """
-
-    logger.info("Fitting Random Forest")
-    
-    # Debug fix: Check what we're training on, to make sure we're inputing the desired variables
-    logger.info("RF Training on shape: %s, columns: %d", X_train.shape, len(X_train.columns))
-    logger.info("RF Training columns: %s", X_train.columns.tolist())
     
     model = RandomForestClassifier(n_estimators=n_estimators, max_depth=max_depth, random_state=random_state, n_jobs=-1)  # Using all CPU cores so it performs better
     
     model.fit(X_train, y_train)
     
-    # Debug fix: check the model's number of features
-    logger.info("RF Model trained on %d features", model.n_features_in_)
-    logger.info("RF Model feature_importances_ shape: %s", model.feature_importances_.shape)
-
     # Make the predictions
     y_pred = model.predict(X_test)
     y_pred_proba = model.predict_proba(X_test)[:, 1]
     
     # Asess the feature importance
     importance_df = pd.DataFrame({'Feature': FEATURES_WITH_MAJOR, 'Importance': model.feature_importances_}).sort_values('Importance', ascending=False)    
-    logger.info("Random Forest fitted successfully")
     
     return {'model': model, 'y_test': y_test, 'y_pred': y_pred, 'y_pred_proba': y_pred_proba, 'importance': importance_df}
 
 def fit_xgboost(X_train, X_test, y_train, y_test, n_estimators=100, max_depth=6, learning_rate=0.1, random_state=42):
     """Fit the XGBoost classifier (which often outperforms RF bc it corrects its errors and doesnt overfit very easily."""
-    
-    logger.info("Fitting XGBoost")
-    
+        
     model = xgb.XGBClassifier(n_estimators=n_estimators, max_depth=max_depth, learning_rate=learning_rate, random_state=random_state, eval_metric='logloss')
     model.fit(X_train, y_train)
     
@@ -143,8 +120,6 @@ def fit_xgboost(X_train, X_test, y_train, y_test, n_estimators=100, max_depth=6,
     
     # Include feature importance (as part of the model's output)
     importance_df = pd.DataFrame({'Feature': FEATURES_WITH_MAJOR, 'Importance': model.feature_importances_}).sort_values('Importance', ascending=False)
-
-    logger.info("XGBoost fitted successfully")
     
     return {'model': model,'y_test': y_test, 'y_pred': y_pred, 'y_pred_proba': y_pred_proba, 'importance': importance_df}
 
@@ -153,13 +128,7 @@ def fit_xgboost(X_train, X_test, y_train, y_test, n_estimators=100, max_depth=6,
 # =============================================================================
 
 def compute_shap_values(model, X_test):
-    """Compute the SHAP values in order to interpret the model correctly and to show how each feature contributes to predictions.
-    """
-    logger.info("Computing SHAP values")
-    
-    # Debug: check X_test shape
-    logger.info("SHAP input X_test shape: %s", X_test.shape)
-    logger.info("SHAP input columns: %s", X_test.columns.tolist() if hasattr(X_test, 'columns') else 'N/A')
+    """Compute the SHAP values in order to interpret the model correctly and to show how each feature contributes to predictions."""
 
     # TreeExplainer for tree-based models
     explainer = shap.TreeExplainer(model)
@@ -171,19 +140,14 @@ def compute_shap_values(model, X_test):
     if isinstance(shap_values, list):
         # List of arrays with both negative and positive classes
         shap_values = shap_values[1]
-        logger.info("SHAP format: list, selected positive class")
     elif len(shap_values.shape) == 3:
         # 3D array (n_samples, n_features, n_classes)
         # Take positive class (index 1 in last dimension)
         shap_values = shap_values[:, :, 1]
-        logger.info("SHAP format: 3D array, selected positive class from last dimension")
     
-    logger.info("SHAP values shape after class selection: %s", shap_values.shape)
-
     # shap_values shape should now be: (n_samples, n_features)
     # Compute mean absolute SHAP value for each feature
     mean_abs_shap = np.abs(shap_values).mean(axis=0)
-    logger.info("mean_abs_shap shape: %s, length: %d", mean_abs_shap.shape, len(mean_abs_shap))
     
     # Make sure that the shape matches
     if len(mean_abs_shap) != len(FEATURES_WITH_MAJOR):
@@ -192,13 +156,11 @@ def compute_shap_values(model, X_test):
     
     # Create the required data frame
     shap_importance = pd.DataFrame({'Feature': list(FEATURES_WITH_MAJOR), 'SHAP_Importance': list(mean_abs_shap)}).sort_values('SHAP_Importance', ascending=False)    
-    logger.info("SHAP values computed successfully")
     
     return {'shap_values': shap_values, 'shap_importance': shap_importance, 'explainer': explainer}
 
 def compute_shap_per_major(model, X_test):
     """Compute SHAP values separately for each major to understand major-specific feature importance."""
-    logger.info("Computing per-major SHAP values")
     
     # Create explainer 
     explainer = shap.TreeExplainer(model)
@@ -219,9 +181,7 @@ def compute_shap_per_major(model, X_test):
         if len(X_test_major) == 0:
             logger.warning(f"No test data found for {major}, skipping")
             continue
-        
-        logger.info(f"Computing SHAP for {major}: {len(X_test_major)} samples")
-        
+                
         # Compute SHAP values for this major
         shap_values_major = explainer.shap_values(X_test_major)
         
@@ -241,9 +201,7 @@ def compute_shap_per_major(model, X_test):
         shap_importance_major = shap_importance_major[~shap_importance_major['Feature'].str.startswith('major_')]
 
         per_major_results[major] = {'shap_values': shap_values_major, 'shap_importance': shap_importance_major, 'n_samples': len(X_test_major)}
-        
-        logger.info(f"Top 3 features for {major}: {shap_importance_major.head(3)['Feature'].tolist()}")
-    
+            
     return per_major_results
 
 # =============================================================================
@@ -277,7 +235,6 @@ def run_ml_analysis(df, results_dir=None):
     
     # Save random forest feature importance to its corresponding results file
     results['random_forest']['importance'].to_csv(results_dir / "1_rf_feature_importance.csv", index=False)
-    logger.info("Saved RF feature importance")
     
     # =========================================================================
     # XGBoost
@@ -287,7 +244,6 @@ def run_ml_analysis(df, results_dir=None):
     
     # Save XGBoost feature importance to its corresponding results file
     results['xgboost']['importance'].to_csv(results_dir / "2_xgb_feature_importance.csv", index=False)
-    logger.info("Saved XGBoost feature importance")
     
     # =========================================================================
     # SHAP Analysis
@@ -297,7 +253,6 @@ def run_ml_analysis(df, results_dir=None):
     
     # Save SHAP importance to its corresponding results file
     results['shap']['shap_importance'].to_csv(results_dir / "3_shap_importance.csv", index=False)
-    logger.info("Saved SHAP importance")
     
     # Per-Major SHAP Analysis
     logger.info("Running per-major SHAP analysis")
@@ -355,7 +310,6 @@ if __name__ == "__main__":
     # Load data
     logger.info("Loading combined dataset")
     data = load_combined_data()
-    logger.info("Loaded %d player-tournament records", len(data))
     
     # Run analysis (only fits models and saves feature importance)
     results = run_ml_analysis(data)
