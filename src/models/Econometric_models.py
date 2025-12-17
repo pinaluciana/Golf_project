@@ -1,6 +1,6 @@
 """
 Econometric Models to identify Performance drivers in golf Majors Championships.
-Main goals: 
+Main goals:
 - Explain score based on performance variables
 - Identify how skill importance varies across tournaments
 - Model the probability of  finishing in the top 25% of the leaderboard
@@ -36,6 +36,7 @@ logger = logging.getLogger(__name__)
 # Model 1: Pooled Linear Regression
 # =============================================================================
 
+
 def fit_pooled_linear(df):
     """
     Fit pooled OLS regression across all majors.
@@ -43,22 +44,40 @@ def fit_pooled_linear(df):
     """
 
     X_scaled, y, scaler = prepare_features(df)
-    
+
     # Add constant for intercept
     X_with_const = sm.add_constant(X_scaled)
-    
+
     # Fit model using statsmodels for p-values and confidence intervals
     model = sm.OLS(y, X_with_const).fit()
-    
+
     # Extract coefficients with statistical info
-    coefficients = pd.DataFrame({'Feature': model.params.index, 'Coefficient': model.params.values, 'Std_Error': model.bse.values, 't_value': model.tvalues.values, 'p_value': model.pvalues.values,
-        'CI_lower': model.conf_int().iloc[:, 0].values, 'CI_upper': model.conf_int().iloc[:, 1].values})
-    
-    return {'model': model, 'coefficients': coefficients, 'scaler': scaler, 'y_pred': model.fittedvalues, 'y_true': y, 'n_features': len(FEATURES)}
+    coefficients = pd.DataFrame(
+        {
+            "Feature": model.params.index,
+            "Coefficient": model.params.values,
+            "Std_Error": model.bse.values,
+            "t_value": model.tvalues.values,
+            "p_value": model.pvalues.values,
+            "CI_lower": model.conf_int().iloc[:, 0].values,
+            "CI_upper": model.conf_int().iloc[:, 1].values,
+        }
+    )
+
+    return {
+        "model": model,
+        "coefficients": coefficients,
+        "scaler": scaler,
+        "y_pred": model.fittedvalues,
+        "y_true": y,
+        "n_features": len(FEATURES),
+    }
+
 
 # =============================================================================
 # Model 2: Per-Major Linear Regression
 # =============================================================================
+
 
 def fit_per_major_linear(df):
     """
@@ -67,63 +86,99 @@ def fit_per_major_linear(df):
     """
 
     results = {}
-    
-    for major in df['major'].unique():
-        major_df = df[df['major'] == major]
-        
+
+    for major in df["major"].unique():
+        major_df = df[df["major"] == major]
+
         # Standardize within each major separately
         X_scaled, y, scaler = prepare_features(major_df)
         X_with_const = sm.add_constant(X_scaled)
         model = sm.OLS(y, X_with_const).fit()
-        
+
         # Create comprehensive coefficients DataFrame for this major
-        major_coefficients = pd.DataFrame({'Feature': model.params.index, 'Coefficient': model.params.values, 'Std_Error': model.bse.values, 't_value': model.tvalues.values, 
-            'p_value': model.pvalues.values, 'CI_lower': model.conf_int().iloc[:, 0].values, 'CI_upper': model.conf_int().iloc[:, 1].values})
-        
-        results[major] = {'model': model, 'y_true': y, 'y_pred': model.fittedvalues, 'coefficients_df': major_coefficients, 'n_obs': len(major_df), 'n_features': len(FEATURES)}
-            
+        major_coefficients = pd.DataFrame(
+            {
+                "Feature": model.params.index,
+                "Coefficient": model.params.values,
+                "Std_Error": model.bse.values,
+                "t_value": model.tvalues.values,
+                "p_value": model.pvalues.values,
+                "CI_lower": model.conf_int().iloc[:, 0].values,
+                "CI_upper": model.conf_int().iloc[:, 1].values,
+            }
+        )
+
+        results[major] = {
+            "model": model,
+            "y_true": y,
+            "y_pred": model.fittedvalues,
+            "coefficients_df": major_coefficients,
+            "n_obs": len(major_df),
+            "n_features": len(FEATURES),
+        }
+
     # Create coefficient comparison table (with features as rows and majors as columns)
     # Use only the Coefficient column from each major's DataFrame
     coef_dict = {}
-    for major in df['major'].unique():
-        coef_df = results[major]['coefficients_df']
+    for major in df["major"].unique():
+        coef_df = results[major]["coefficients_df"]
         # Create a Series with Feature as index and Coefficient as values (exclude constant)
-        coef_series = coef_df[coef_df['Feature'] != 'const'].set_index('Feature')['Coefficient']
+        coef_series = coef_df[coef_df["Feature"] != "const"].set_index("Feature")[
+            "Coefficient"
+        ]
         coef_dict[major] = coef_series
-    
-    results['coefficient_comparison'] = pd.DataFrame(coef_dict)
+
+    results["coefficient_comparison"] = pd.DataFrame(coef_dict)
     return results
+
 
 # =============================================================================
 # Model 3: Logistic Regression (Pooled and extension with Major Interactions)
 # =============================================================================
+
 
 def fit_pooled_logistic(df):
     """
     Fit pooled logistic regression using statsmodels.
     Goal: predict the probability of finishing in the top 25% of each tournament, in order to identify which performance variables distinguish top performers.
     """
-    
+
     # Prepare the data
     X_scaled, _, scaler = prepare_features(df)
-    y = df.loc[X_scaled.index, 'top_25']
-    
+    y = df.loc[X_scaled.index, "top_25"]
+
     # Add a constant and fit the model
     X_with_const = sm.add_constant(X_scaled)
     model = sm.Logit(y, X_with_const).fit(disp=0)  # disp=0 suppresses output
-    
+
     # Include predictions
     y_pred_proba = model.predict(X_with_const)
     y_pred = (y_pred_proba >= 0.5).astype(int)
-    
+
     # Extract the coefficients
-    coefficients = pd.DataFrame({'Feature': model.params.index, 'Coefficient': model.params.values, 'Std_Error': model.bse.values, 'z_value': model.tvalues.values, 'p_value': model.pvalues.values,
-        'CI_lower': model.conf_int().iloc[:, 0].values, 'CI_upper': model.conf_int().iloc[:, 1].values})
-        
-    return {'model': model, 'coefficients': coefficients, 'y_true': y, 'y_pred': y_pred, 'y_pred_proba': y_pred_proba}
+    coefficients = pd.DataFrame(
+        {
+            "Feature": model.params.index,
+            "Coefficient": model.params.values,
+            "Std_Error": model.bse.values,
+            "z_value": model.tvalues.values,
+            "p_value": model.pvalues.values,
+            "CI_lower": model.conf_int().iloc[:, 0].values,
+            "CI_upper": model.conf_int().iloc[:, 1].values,
+        }
+    )
+
+    return {
+        "model": model,
+        "coefficients": coefficients,
+        "y_true": y,
+        "y_pred": y_pred,
+        "y_pred_proba": y_pred_proba,
+    }
+
 
 def fit_logistic_with_interactions(df):
-    """ 
+    """
     Added an extension to the logistic regression with major interaction terms to show how the importance of the performance variables changes per major.
     Created interaction terms: metric * major for each combination.
     Note: here I used sklearn instead of statsmodels bc:
@@ -131,99 +186,115 @@ def fit_logistic_with_interactions(df):
     - Sklearn's regularization handles high-dimensional data better
     - The goal is to compare coefficients, not the statistical inference
     """
-    
+
     # Create interaction features
-    majors = df['major'].unique()
+    majors = df["major"].unique()
     interaction_features = []
     df_copy = df.copy()
-    
+
     for metric in FEATURES:
         for major in majors:
-            col_name = f'{metric}_x_{major}'
-            df_copy[col_name] = df_copy[metric] * (df_copy['major'] == major).astype(int)
+            col_name = f"{metric}_x_{major}"
+            df_copy[col_name] = df_copy[metric] * (df_copy["major"] == major).astype(
+                int
+            )
             interaction_features.append(col_name)
-        
+
     X = df_copy[interaction_features]
-    y = df_copy['top_25']
-    
+    y = df_copy["top_25"]
+
     # Fit model with sklearn
     model = LogisticRegression(max_iter=10000, random_state=42)
     model.fit(X, y)
-    
+
     # Make predictions
     y_pred = model.predict(X)
     y_pred_proba = model.predict_proba(X)[:, 1]
 
     # Extract coefficients and organize by major
-    coef_df = pd.DataFrame({'feature': interaction_features, 'coefficient': model.coef_[0]})
-    
+    coef_df = pd.DataFrame(
+        {"feature": interaction_features, "coefficient": model.coef_[0]}
+    )
+
     # Split feature name to get metric and major
-    coef_df[['metric', 'major']] = coef_df['feature'].str.split('_x_', n=1, expand=True)
-    
+    coef_df[["metric", "major"]] = coef_df["feature"].str.split("_x_", n=1, expand=True)
+
     # Pivot to create comparison table (metrics as rows, majors as columns)
-    comparison_table = coef_df.pivot(index='metric', columns='major', values='coefficient')
-    
-    return {'model': model,
-        'comparison_table': comparison_table,
-        'y_true': y,
-        'y_pred': y_pred,
-        'y_pred_proba': y_pred_proba}
+    comparison_table = coef_df.pivot(
+        index="metric", columns="major", values="coefficient"
+    )
+
+    return {
+        "model": model,
+        "comparison_table": comparison_table,
+        "y_true": y,
+        "y_pred": y_pred,
+        "y_pred_proba": y_pred_proba,
+    }
 
     # =============================================================================
     # Main Analysis Function
     # =============================================================================
+
+
 def run_econometric_analysis(df, results_dir=None):
     """
     Run all econometric models and save results to CSV.
-    """    
+    """
     # Setup results directory (golf_project/results/2_Econometric_models)
     if results_dir is None:
-        results_dir = Path(__file__).parent.parent.parent / "results" / "2_Econometric_models"
+        results_dir = (
+            Path(__file__).parent.parent.parent / "results" / "2_Econometric_models"
+        )
     else:
         results_dir = Path(results_dir)
     results_dir.mkdir(parents=True, exist_ok=True)
-    
+
     results = {}
 
     # =========================================================================
     # Model 1: Pooled Linear Regression
     # =========================================================================
-    results['pooled_linear'] = fit_pooled_linear(df)
-    
+    results["pooled_linear"] = fit_pooled_linear(df)
+
     # Save comprehensive coefficients to CSV
-    results['pooled_linear']['coefficients'].to_csv(
-        results_dir / "1_pooled_linear_coefficients.csv", index=False)
-    
+    results["pooled_linear"]["coefficients"].to_csv(
+        results_dir / "1_pooled_linear_coefficients.csv", index=False
+    )
+
     # =========================================================================
     # Model 2: Per-Major Linear Regression
     # =========================================================================
-    results['per_major_linear'] = fit_per_major_linear(df)
-    
+    results["per_major_linear"] = fit_per_major_linear(df)
+
     # Save each major's coefficients to separate CSV
-    for major in df['major'].unique():
-        safe_major_name = major.replace(' ', '_').replace("'", "")
-        results['per_major_linear'][major]['coefficients_df'].to_csv(
-            results_dir / f"2_per_major_{safe_major_name}_coefficients.csv", index=False)
-    
+    for major in df["major"].unique():
+        safe_major_name = major.replace(" ", "_").replace("'", "")
+        results["per_major_linear"][major]["coefficients_df"].to_csv(
+            results_dir / f"2_per_major_{safe_major_name}_coefficients.csv", index=False
+        )
+
     # Save coefficient comparison table
-    results['per_major_linear']['coefficient_comparison'].to_csv(
-        results_dir / "2_per_major_comparison.csv")
-    
+    results["per_major_linear"]["coefficient_comparison"].to_csv(
+        results_dir / "2_per_major_comparison.csv"
+    )
+
     # =========================================================================
     # Model 3: Logistic Regression
-    # =========================================================================    
+    # =========================================================================
     # Add top 25% target
     df = create_top25_target(df)
-    
-    # Part 1: Pooled Logistic
-    results['pooled_logistic'] = fit_pooled_logistic(df)
-    results['pooled_logistic']['coefficients'].to_csv(
-        results_dir / "3a_logistic_coefficients.csv", index=False)
-    
-    # Part 2: Logistic with Major Interactions
-    results['interaction_logistic'] = fit_logistic_with_interactions(df)
-    results['interaction_logistic']['comparison_table'].to_csv(
-        results_dir / "3b_interaction_coefficients.csv")
-        
-    return results
 
+    # Part 1: Pooled Logistic
+    results["pooled_logistic"] = fit_pooled_logistic(df)
+    results["pooled_logistic"]["coefficients"].to_csv(
+        results_dir / "3a_logistic_coefficients.csv", index=False
+    )
+
+    # Part 2: Logistic with Major Interactions
+    results["interaction_logistic"] = fit_logistic_with_interactions(df)
+    results["interaction_logistic"]["comparison_table"].to_csv(
+        results_dir / "3b_interaction_coefficients.csv"
+    )
+
+    return results

@@ -16,14 +16,16 @@ def main():
 
         # Remove 2022 data due to missing variables (gir, prox_fw, prox_rgh, scrambling, great_shot, poor_shot)
         if year == "2022":
-            print(f"Skipping {f.name} due to missing variables (gir, prox_fw, prox_rgh, scrambling, great_shot, poor_shot)")
+            print(
+                f"Skipping {f.name} due to missing variables (gir, prox_fw, prox_rgh, scrambling, great_shot, poor_shot)"
+            )
             continue
 
         df = pd.read_csv(f)
 
-        #remove players who didn't make the cut, got disqualified("DQ") or withdrew("WD")
+        # remove players who didn't make the cut, got disqualified("DQ") or withdrew("WD")
         df = df[~df["position"].isin(["CUT", "DQ", "WD"])]
-        
+
         df["year"] = int(year)
         dfs.append(df)
 
