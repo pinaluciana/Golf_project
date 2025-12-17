@@ -19,6 +19,7 @@ if str(SRC_DIR) not in sys.path: sys.path.insert(0, str(SRC_DIR))
 import pandas as pd
 import numpy as np
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.model_selection import GridSearchCV
 import xgboost as xgb
 import shap
 
@@ -73,9 +74,6 @@ def prepare_ml_data(df):
     test_features = test_df[FEATURES].copy()
     X_test_scaled = scaler.transform(test_features)
     
-    # Create the corresponding data frame with column names
-    X_test = pd.DataFrame(X_test_scaled, columns=FEATURES, index=test_features.index)
-    
     # Add the major dummies (unscaled) to test data
     X_test_perf = pd.DataFrame(X_test_scaled, columns=FEATURES, index=test_features.index)
     X_test_dummies = test_df.loc[X_test_perf.index, MAJOR_COLS]
@@ -84,6 +82,74 @@ def prepare_ml_data(df):
     y_test = test_df.loc[X_test.index, 'top_25']
     
     return X_train, X_test, y_train, y_test
+
+# =============================================================================
+# Hyperparameter Tuning
+# =============================================================================
+
+def tune_random_forest(X_train, y_train):
+    """Use GridSearchCV to find the best Random Forest hyperparameters, in order to reduce overfitting by finding optimal complexity through cross-validation."""
+    
+    param_grid = {
+        'max_depth': [4, 5, 6],
+        'min_samples_split': [10, 15, 20],
+        'min_samples_leaf': [5, 7, 10],
+        'max_features': ['sqrt', 'log2']
+    }
+    
+    rf_model = RandomForestClassifier(
+        n_estimators=100,
+        random_state=42,
+        n_jobs=-1
+    )
+    
+    grid_search = GridSearchCV(
+        rf_model,
+        param_grid,
+        cv=5,  # 5-fold cross-validation on training data only
+        scoring='roc_auc',
+        n_jobs=-1,
+        verbose=0
+    )
+    
+    # 
+    grid_search.fit(X_train, y_train)
+    
+    return grid_search.best_estimator_
+
+def tune_xgboost(X_train, y_train):
+    """Use GridSearchCV to find best XGBoost hyperparameters, in order to reduce overfitting by finding optimal complexity through cross-validation."""
+    
+    param_grid = {
+        'max_depth': [3, 4, 5],
+        'min_child_weight': [3, 5, 7],
+        'subsample': [0.7, 0.8, 0.9],
+        'colsample_bytree': [0.7, 0.8, 0.9]
+    }
+    
+    xgb_model = xgb.XGBClassifier(
+        n_estimators=100,
+        learning_rate=0.1,
+        reg_alpha=0.1,
+        reg_lambda=1.0,
+        random_state=42,
+        eval_metric='logloss'
+    )
+    
+    grid_search = GridSearchCV(
+        xgb_model,
+        param_grid,
+        cv=5,  # 5-fold cross-validation on training data only
+        scoring='roc_auc',
+        n_jobs=-1,
+        verbose=0
+    )
+    
+    # 
+    grid_search.fit(X_train, y_train)
+    
+    return grid_search.best_estimator_
+
 
 # =============================================================================
 # Model Fitting Functions
@@ -95,9 +161,13 @@ def fit_random_forest(X_train, X_test, y_train, y_test, n_estimators=100, max_de
     Goal: to capture non-linear relationships and provide robust feature importance.
     """
     
-    model = RandomForestClassifier(n_estimators=n_estimators, max_depth=max_depth, random_state=random_state, n_jobs=-1)  # Using all CPU cores so it performs better
-    
-    model.fit(X_train, y_train)
+    # Use GridSearchCV to find best hyperparameters
+    model = tune_random_forest(X_train, y_train)
+
+    # Print clean hyperparameter summary
+    logger.info(f"Random Forest Hyperparameters: max_depth={model.max_depth}, min_samples_split={model.min_samples_split}, min_samples_leaf={model.min_samples_leaf}, max_features={model.max_features}")
+    logger.info("Random Forest Cross-validation: 5-fold CV on 2020-2024 training data")
+    print()  # Blank line 
     
     # Make the predictions
     y_pred = model.predict(X_test)
@@ -106,14 +176,20 @@ def fit_random_forest(X_train, X_test, y_train, y_test, n_estimators=100, max_de
     # Asess the feature importance
     importance_df = pd.DataFrame({'Feature': FEATURES_WITH_MAJOR, 'Importance': model.feature_importances_}).sort_values('Importance', ascending=False)    
     
-    return {'model': model, 'y_test': y_test, 'y_pred': y_pred, 'y_pred_proba': y_pred_proba, 'importance': importance_df}
+    return {'model': model, 'X_train': X_train, 'y_train': y_train, 'y_test': y_test, 'y_pred': y_pred, 'y_pred_proba': y_pred_proba, 'importance': importance_df}
+
 
 def fit_xgboost(X_train, X_test, y_train, y_test, n_estimators=100, max_depth=6, learning_rate=0.1, random_state=42):
     """Fit the XGBoost classifier (which often outperforms RF bc it corrects its errors and doesnt overfit very easily."""
         
-    model = xgb.XGBClassifier(n_estimators=n_estimators, max_depth=max_depth, learning_rate=learning_rate, random_state=random_state, eval_metric='logloss')
-    model.fit(X_train, y_train)
+    # Use GridSearchCV to find best hyperparameters
+    model = tune_xgboost(X_train, y_train)
     
+    # Print clean hyperparameter summary
+    logger.info(f"XGBoost Hyperparameters: max_depth={model.max_depth}, min_child_weight={model.min_child_weight}, subsample={model.subsample}, colsample_bytree={model.colsample_bytree}")
+    logger.info("XGBoost Cross-validation: 5-fold CV on 2020-2024 training data")
+    print()  # Blank line
+
     # Add predictions
     y_pred = model.predict(X_test)
     y_pred_proba = model.predict_proba(X_test)[:, 1]
@@ -121,7 +197,7 @@ def fit_xgboost(X_train, X_test, y_train, y_test, n_estimators=100, max_depth=6,
     # Include feature importance (as part of the model's output)
     importance_df = pd.DataFrame({'Feature': FEATURES_WITH_MAJOR, 'Importance': model.feature_importances_}).sort_values('Importance', ascending=False)
     
-    return {'model': model,'y_test': y_test, 'y_pred': y_pred, 'y_pred_proba': y_pred_proba, 'importance': importance_df}
+    return {'model': model, 'X_train': X_train, 'y_train': y_train, 'y_test': y_test, 'y_pred': y_pred, 'y_pred_proba': y_pred_proba, 'importance': importance_df}
 
 # =============================================================================
 # SHAP Analysis
@@ -151,8 +227,8 @@ def compute_shap_values(model, X_test):
     
     # Make sure that the shape matches
     if len(mean_abs_shap) != len(FEATURES_WITH_MAJOR):
-        logger.error("SHAP shape mismatch: got %d values for %d features", len(mean_abs_shap), len(FEATURES))
-        raise ValueError(f"SHAP shape mismatch: {len(mean_abs_shap)} vs {len(FEATURES)}")
+        logger.error("SHAP shape mismatch: got %d values for %d features", len(mean_abs_shap), len(FEATURES_WITH_MAJOR))
+        raise ValueError(f"SHAP shape mismatch: {len(mean_abs_shap)} vs {len(FEATURES_WITH_MAJOR)}")
     
     # Create the required data frame
     shap_importance = pd.DataFrame({'Feature': list(FEATURES_WITH_MAJOR), 'SHAP_Importance': list(mean_abs_shap)}).sort_values('SHAP_Importance', ascending=False)    
@@ -213,7 +289,6 @@ def run_ml_analysis(df, results_dir=None):
     Run machine learning models and save the feature importance to csv.
     Metrics and comparisons are computed separately in evaluation.py.
     """
-    logger.info("Starting ML analysis")
     
     # Setup results directory (golf_project/results/3_ML_models)
     if results_dir is None:
@@ -230,7 +305,6 @@ def run_ml_analysis(df, results_dir=None):
     # =========================================================================
     # Random Forest
     # =========================================================================
-    logger.info("Running Random Forest model")
     results['random_forest'] = fit_random_forest(X_train, X_test, y_train, y_test)
     
     # Save random forest feature importance to its corresponding results file
@@ -239,7 +313,6 @@ def run_ml_analysis(df, results_dir=None):
     # =========================================================================
     # XGBoost
     # =========================================================================
-    logger.info("Running XGBoost model")
     results['xgboost'] = fit_xgboost(X_train, X_test, y_train, y_test)
     
     # Save XGBoost feature importance to its corresponding results file
@@ -248,15 +321,13 @@ def run_ml_analysis(df, results_dir=None):
     # =========================================================================
     # SHAP Analysis
     # =========================================================================
-    logger.info("Running SHAP analysis on Random Forest")
-    results['shap'] = compute_shap_values(results['random_forest']['model'], X_test)
+    results['shap'] = compute_shap_values(results['xgboost']['model'], X_test)
     
     # Save SHAP importance to its corresponding results file
     results['shap']['shap_importance'].to_csv(results_dir / "3_shap_importance.csv", index=False)
     
     # Per-Major SHAP Analysis
-    logger.info("Running per-major SHAP analysis")
-    results['shap_per_major'] = compute_shap_per_major(results['random_forest']['model'], X_test)
+    results['shap_per_major'] = compute_shap_per_major(results['xgboost']['model'], X_test)
     
     # Create combined dataframe with all majors (put features as the index and exclude Major dummies bc not useful)
     all_features = [f for f in FEATURES_WITH_MAJOR if not f.startswith('major_')]
@@ -282,45 +353,5 @@ def run_ml_analysis(df, results_dir=None):
     
     # Save to single CSV
     shap_combined.to_csv(results_dir / "4_shap_per_major_comparison.csv", index=False)
-    logger.info("Saved combined per-major SHAP importance")
-
-    logger.info("ML analysis complete. Results saved to %s", results_dir)
     
     return results
-
-# =============================================================================
-# Script Entry Point
-# =============================================================================
-
-if __name__ == "__main__":
-    import sys
-    
-    # Add src directory to path for imports
-    SRC_DIR = Path(__file__).parent
-    if str(SRC_DIR) not in sys.path:
-        sys.path.insert(0, str(SRC_DIR))
-    
-    logging.basicConfig(level=logging.INFO,
-        format='%(asctime)s - %(levelname)s - %(message)s')
-    
-    from data_loader import load_combined_data
-    from evaluation import evaluate_ml_models
-    from visualization import create_ml_visualizations
-    
-    # Load data
-    logger.info("Loading combined dataset")
-    data = load_combined_data()
-    
-    # Run analysis (only fits models and saves feature importance)
-    results = run_ml_analysis(data)
-    
-    logger.info("Machine learning models have successfully completed!")
-
-    # Evaluate all the models and save its corresponding metrics
-    results_dir = Path(__file__).parent.parent.parent / "results" / "3_ML_models"
-    evaluate_ml_models(results, results_dir)
-    
-    # Create visualizations (saved to figures folder inside results)
-    create_ml_visualizations(results, results_dir) 
-
-    logger.info("The machine learning models' evaluation has been completed!")
