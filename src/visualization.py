@@ -3,7 +3,6 @@
 import logging
 from pathlib import Path
 import pandas as pd
-import numpy as np
 import matplotlib
 
 matplotlib.use("Agg")
@@ -29,7 +28,7 @@ def plot_pooled_linear_coefficients(coefficients_df, save_path):
     # Sort by the raw coefficient value (biggest positive first)
     coef_df = coef_df.sort_values("Coefficient", ascending=False)
 
-    fig, ax = plt.subplots(figsize=(10, 8))
+    _, ax = plt.subplots(figsize=(10, 8))
 
     # Integrate different color bars based on whether the feature is statistically significant or not.
     colors = ["steelblue" if p < 0.05 else "lightgray" for p in coef_df["p_value"]]
@@ -103,7 +102,7 @@ def plot_pooled_logistic_coefficients(coefficients_df, save_path):
     # Sort by the raw coefficient value (not abs), with the most negative shown first, positive coefficients increase the chance of finishing in the top 25%.
     coef_df = coef_df.sort_values("Coefficient", ascending=True)
 
-    fig, ax = plt.subplots(figsize=(10, 8))
+    _, ax = plt.subplots(figsize=(10, 8))
 
     # Include color bars based on the significance of the coefficients, blue: significant, grey: not significant
     colors = ["steelblue" if p < 0.05 else "lightgray" for p in coef_df["p_value"]]
@@ -215,7 +214,7 @@ def plot_feature_importance_comparison(
     xgb_all = xgb_importance[~xgb_importance["Feature"].str.startswith("major_")]
     shap_all = shap_importance[~shap_importance["Feature"].str.startswith("major_")]
 
-    fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(20, 8))
+    _, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(20, 8))
 
     # Random Forest feature importance
     ax1.barh(rf_all["Feature"], rf_all["Importance"], color="steelblue")
@@ -331,7 +330,7 @@ def plot_confusion_matrices(rf_results, xgb_results, save_path):
         ]
     )
 
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 6))
+    _, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 6))
 
     # Random Forest comfusion matrix
     sns.heatmap(

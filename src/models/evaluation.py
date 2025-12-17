@@ -6,14 +6,12 @@ This file computes metrics for both econometric and Machine Learning models.
 import logging
 from pathlib import Path
 import numpy as np
-import pandas as pd
 from sklearn.metrics import (
     mean_squared_error,
     r2_score,
     accuracy_score,
     roc_auc_score,
     confusion_matrix,
-    classification_report,
     precision_score,
     recall_score,
     f1_score,

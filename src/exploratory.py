@@ -246,7 +246,7 @@ def plot_distribution_dashboard(df, save_path=None):
     """
     Create a single dashboard with boxplots for all performance metrics to show the distribution of each variable (instead of having 12 separate plots).
     """
-    fig, axes = plt.subplots(3, 4, figsize=(16, 10))
+    _, axes = plt.subplots(3, 4, figsize=(16, 10))
     axes = axes.flatten()
 
     for i, metric in enumerate(KEY_METRICS):

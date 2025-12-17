@@ -23,7 +23,6 @@ if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
 import pandas as pd
-import numpy as np
 import statsmodels.api as sm
 from sklearn.linear_model import LogisticRegression
 
@@ -91,7 +90,7 @@ def fit_per_major_linear(df):
         major_df = df[df["major"] == major]
 
         # Standardize within each major separately
-        X_scaled, y, scaler = prepare_features(major_df)
+        X_scaled, y, _ = prepare_features(major_df)
         X_with_const = sm.add_constant(X_scaled)
         model = sm.OLS(y, X_with_const).fit()
 
@@ -144,7 +143,7 @@ def fit_pooled_logistic(df):
     """
 
     # Prepare the data
-    X_scaled, _, scaler = prepare_features(df)
+    X_scaled, _, _ = prepare_features(df)
     y = df.loc[X_scaled.index, "top_25"]
 
     # Add a constant and fit the model

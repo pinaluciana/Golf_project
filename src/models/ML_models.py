@@ -168,9 +168,7 @@ def tune_xgboost(X_train, y_train):
 # =============================================================================
 
 
-def fit_random_forest(
-    X_train, X_test, y_train, y_test, n_estimators=100, max_depth=10, random_state=42
-):
+def fit_random_forest(X_train, X_test, y_train, y_test):
     """
     Fit Random Forest classifier.
     Goal: to capture non-linear relationships and provide robust feature importance.
@@ -206,16 +204,7 @@ def fit_random_forest(
     }
 
 
-def fit_xgboost(
-    X_train,
-    X_test,
-    y_train,
-    y_test,
-    n_estimators=100,
-    max_depth=6,
-    learning_rate=0.1,
-    random_state=42,
-):
+def fit_xgboost(X_train, X_test, y_train, y_test):
     """Fit the XGBoost classifier (which often outperforms RF bc it corrects its errors and doesnt overfit very easily."""
 
     # Use GridSearchCV to find best hyperparameters
