@@ -3,7 +3,8 @@ import pandas as pd
 
 
 def main():
-    folder = Path(__file__).parent
+    folder = Path(__file__).parent.parent.parent / "data" / "raw"
+    
     files = sorted(folder.glob("*.csv"))
 
     dfs = []
