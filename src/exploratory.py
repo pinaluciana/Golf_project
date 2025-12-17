@@ -7,7 +7,6 @@ import logging
 from pathlib import Path
 
 import pandas as pd
-import numpy as np
 import matplotlib
 
 matplotlib.use("Agg")  # We use this non-interactive back end for saving figures
@@ -15,7 +14,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 
 # To import "ALL_METRICS" for correlation analysis
-from feature_engineering import FEATURES, ALL_METRICS
+from feature_engineering import ALL_METRICS
 
 logger = logging.getLogger(__name__)
 

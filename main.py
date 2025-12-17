@@ -136,7 +136,6 @@ def main():
     logger.info("FEATURE GROUPS (for interpretation/reference).")
     logger.info("All 12 features are used in the models.")
 
-
     groups = feature_engineering.get_feature_groups()
     for group_name, features in groups.items():
         feature_list = ", ".join(features)
