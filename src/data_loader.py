@@ -20,5 +20,5 @@ def load_combined_data():
         raise FileNotFoundError(f"Data file not found. Expected at: {data_path}")
     
     df = pd.read_csv(data_path) 
-    logger.info(f"Loaded {len(df)} player & tournament records")
+    logger.info(f"  Loaded {len(df)} player & tournament records")
     return df

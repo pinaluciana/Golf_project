@@ -1,35 +1,29 @@
 """
-Evaluation metrics and model comparison for the golf performance models. This file computes metrics for both econometric and Machine Learning models.
+Evaluation metrics and model comparison for the golf performance models.
+This file computes metrics for both econometric and Machine Learning models.
 """
 
 import logging
 from pathlib import Path
 import numpy as np
 import pandas as pd
-from sklearn.metrics import (mean_squared_error, r2_score, accuracy_score, roc_auc_score, confusion_matrix, classification_report, precision_score, recall_score, f1_score)
+from sklearn.metrics import (mean_squared_error, r2_score, accuracy_score,  roc_auc_score, confusion_matrix, classification_report,  precision_score, recall_score, f1_score)
 
 logger = logging.getLogger(__name__)
 
 # =============================================================================
-# Regression Metrics (for econometric models)
+# BASIC METRIC COMPUTATION FUNCTIONS
 # =============================================================================
 
 def compute_regression_metrics(y_true, y_pred):
     """Compute R², RMSE, MAE for linear regression models."""
     y_true, y_pred = np.array(y_true), np.array(y_pred)
-    return {'r_squared': r2_score(y_true, y_pred), 'rmse': np.sqrt(mean_squared_error(y_true, y_pred)), 'mae': np.mean(np.abs(y_true - y_pred)), 'n_observations': len(y_true)}
-
-def compute_adjusted_r2(r2, n, p):
-    """Compute adjusted R² that penalizes for number of predictors."""
-    return 1 - (1 - r2) * (n - 1) / (n - p - 1)
-
-# ==================================================================================
-# Classification Metrics (for the logistic regression & the Machine Learning models)
-# ==================================================================================
+    return {'r_squared': r2_score(y_true, y_pred), 'rmse': np.sqrt(mean_squared_error(y_true, y_pred)), 'mae': np.mean(np.abs(y_true - y_pred)),'n_observations': len(y_true)}
 
 def compute_classification_metrics(y_true, y_pred, y_pred_proba=None):
     """Compute all classification metrics: accuracy, precision, recall, F1, ROC-AUC."""
-    metrics = {'accuracy': accuracy_score(y_true, y_pred), 'precision': precision_score(y_true, y_pred, zero_division=0), 'recall': recall_score(y_true, y_pred, zero_division=0),'f1_score': f1_score(y_true, y_pred, zero_division=0)}
+    metrics = {'accuracy': accuracy_score(y_true, y_pred), 'precision': precision_score(y_true, y_pred, zero_division=0),'recall': recall_score(y_true, y_pred, zero_division=0),
+        'f1_score': f1_score(y_true, y_pred, zero_division=0)}
     if y_pred_proba is not None:
         metrics['roc_auc'] = roc_auc_score(y_true, y_pred_proba)
     return metrics
@@ -38,217 +32,346 @@ def compute_confusion_matrix(y_true, y_pred):
     """Compute confusion matrix."""
     return confusion_matrix(y_true, y_pred)
 
-def get_classification_report_dict(y_true, y_pred):
-    """Get classification report as dict for saving to CSV."""
-    report = classification_report(y_true, y_pred, target_names=['Rest of Field', 'Top 25%'], output_dict=True)
-    return pd.DataFrame(report).transpose()
-
 # =============================================================================
-# Print Helper Functions
+# ECONOMETRIC MODEL EVALUATION
 # =============================================================================
 
-def print_regression_metrics(model_name, metrics):
-    """Print regression metrics in consistent format."""
-    print(f"\n{model_name}:")
-    print(f"  R²:   {metrics['r_squared']:.4f}")
-    print(f"  RMSE: {metrics['rmse']:.4f}")
-    print(f"  MAE:  {metrics['mae']:.4f}")
-    print(f"  N:    {metrics['n_observations']}")
+def evaluate_econometric_models(econ_results, data):
+    """
+    Evaluate econometric models and print metrics organized by subsections.
+    Prints evaluation metrics for Section 3.
+    """
+    
+    # Section 3.1: Pooled Linear Regression
+    print("-"*100)
+    print("SECTION 3.1: Pooled Linear Regression")
+    print("-"*100)
 
-def print_classification_metrics(model_name, metrics, y_true=None, y_pred=None):
-    """Print classification metrics in consistent format."""
-    print(f"\n{model_name}:")
-    print(f"  Accuracy:  {metrics['accuracy']:.4f}")
-    print(f"  Precision: {metrics['precision']:.4f}")
-    print(f"  Recall:    {metrics['recall']:.4f}")
-    print(f"  F1 Score:  {metrics['f1_score']:.4f}")
-    print(f"  ROC-AUC:   {metrics['roc_auc']:.4f}")
-    
-    # Print confusion matrix 
-    if y_true is not None and y_pred is not None: 
-        cm = compute_confusion_matrix(y_true, y_pred)
-        total = cm.sum()
+    pooled_metrics = compute_regression_metrics(
+        econ_results['pooled_linear']['y_true'], 
+        econ_results['pooled_linear']['y_pred'])
 
-        print(f"\n  Confusion Matrix:")
-        print(f"                       Predicted")
-        print(f"                    Rest      Top 25%")
-        print(f"  Actual")
-        print(f"  Rest              {cm[0,0]:>6}     {cm[0,1]:>6}    (True Negatives: {cm[0,0]}, False Positives: {cm[0,1]})")
-        print(f"  Top 25%           {cm[1,0]:>6}     {cm[1,1]:>6}    (False Negatives: {cm[1,0]}, True Positives: {cm[1,1]})")
-        print(f"\n  Correctly Predicted: {cm[0,0] + cm[1,1]} out of {total} ({(cm[0,0] + cm[1,1])/total*100:.1f}%)")
+    logger.info("Pooled Linear Regression:")
+    logger.info(f"  R²:          {pooled_metrics['r_squared']:.4f}")
+    logger.info(f"  Adjusted R²: {econ_results['pooled_linear']['model'].rsquared_adj:.4f}")
+    logger.info(f"  RMSE:        {pooled_metrics['rmse']:.4f} strokes")
+    logger.info(f"  N:           {pooled_metrics['n_observations']}")
+    
+    # Section 3.2: Per-Major Linear Regression
+    print("\n" + "-"*100)
+    print("SECTION 3.2: Per-Major Linear Regression")
+    print("-"*100)
+    logger.info("Per-Major Linear Regression:")
 
-def create_combined_feature_importance(rf_importance, xgb_importance, shap_importance, save_path):
-    """Create one combined feature importance CSV with all models and rankings."""
+    for major in data['major'].unique():
+        major_model = econ_results['per_major_linear'][major]['model']
+        major_metrics = compute_regression_metrics(
+            econ_results['per_major_linear'][major]['y_true'],
+            econ_results['per_major_linear'][major]['y_pred'])
     
-    # Use all features
-    rf_all = rf_importance.copy()
-    xgb_all = xgb_importance.copy()
-    shap_all = shap_importance.copy()
+        logger.info(f"  {major:<25} R² = {major_model.rsquared:.4f}, Adj R² = {major_model.rsquared_adj:.4f}, RMSE = {major_metrics['rmse']:.4f} strokes, n = {major_metrics['n_observations']}")
     
-    # Add rankings
-    rf_all['RF_Rank'] = range(1, len(rf_all) + 1)
-    xgb_all['XGB_Rank'] = range(1, len(xgb_all) + 1)
-    shap_all['SHAP_Rank'] = range(1, len(shap_all) + 1)
-    
-    # Rename importance columns
-    rf_all = rf_all.rename(columns={'Importance': 'RF_Importance'})
-    xgb_all = xgb_all.rename(columns={'Importance': 'XGB_Importance'})
-    shap_all = shap_all.rename(columns={'SHAP_Importance': 'SHAP_Importance'})
-    
-    # Get all unique features
-    all_features = set(rf_all['Feature']) | set(xgb_all['Feature']) | set(shap_all['Feature'])
-    
-    # Create combined dataframe
-    combined = pd.DataFrame({'Feature': sorted(all_features)})
-    
-    # Filter out the Major dummy variables bc they're not meaningful for interpretation
-    combined = combined[~combined['Feature'].str.startswith('major_')]
+   # Section 3.3: Pooled Logistic Regression
+    print("\n" + "-"*100)
+    print("SECTION 3.3: Pooled Logistic Regression")
+    print("-"*100)
 
-    # Merge each model's data
-    combined = combined.merge(rf_all[['Feature', 'RF_Importance', 'RF_Rank']], on='Feature', how='left')
-    combined = combined.merge(xgb_all[['Feature', 'XGB_Importance', 'XGB_Rank']], on='Feature', how='left')
-    combined = combined.merge(shap_all[['Feature', 'SHAP_Importance', 'SHAP_Rank']], on='Feature', how='left')
-    
-    # Sort by average rank (features with best average ranking first)
-    combined['Avg_Rank'] = combined[['RF_Rank', 'XGB_Rank', 'SHAP_Rank']].mean(axis=1)
-    combined = combined.sort_values('Avg_Rank')
-    combined = combined.drop('Avg_Rank', axis=1)
-    
-    # Replace NaN with "-" for missing features
-    combined = combined.fillna('-')
-    
-    # Reorder columns
-    combined = combined[['Feature', 'RF_Importance', 'RF_Rank', 'XGB_Importance', 'XGB_Rank', 'SHAP_Importance', 'SHAP_Rank']]
-    
-    # Save to CSV
-    save_path = Path(save_path)
-    save_path.parent.mkdir(parents=True, exist_ok=True)
-    combined.to_csv(save_path, index=False)
-    logger.info("Saved combined feature importance to %s", save_path)
+    pooled_metrics = compute_classification_metrics(
+        econ_results['pooled_logistic']['y_true'],
+        econ_results['pooled_logistic']['y_pred'],
+        econ_results['pooled_logistic']['y_pred_proba'])
 
-    # Print only top 5 for terminal output
-    print("\n  Top 5 Features by Model:")
-    print("\n  Random Forest:")
-    for idx, row in rf_importance.head(5).iterrows():
-        print(f"    {row['Feature']:<15} {row['Importance']:>8.4f}")
+    logger.info("Pooled Logistic Regression:")
+    logger.info(f"  Accuracy:  {pooled_metrics['accuracy']:.4f}")
+    logger.info(f"  Precision: {pooled_metrics['precision']:.4f}")
+    logger.info(f"  Recall:    {pooled_metrics['recall']:.4f}")
+    logger.info(f"  F1 Score:  {pooled_metrics['f1_score']:.4f}")
+    logger.info(f"  ROC-AUC:   {pooled_metrics['roc_auc']:.4f}")
     
-    print("\n  XGBoost:")
-    for idx, row in xgb_importance.head(5).iterrows():
-        print(f"    {row['Feature']:<15} {row['Importance']:>8.4f}")
-    
-    print("\n  SHAP:")
-    for idx, row in shap_importance.head(5).iterrows():
-        print(f"    {row['Feature']:<15} {row.iloc[1]:>8.4f}")
-    
-    return combined
+   # Section 3.4: Extension with Interactions
+    print("\n" + "-"*100)
+    print("SECTION 3.4: Extension of Pooled Logistic Regression with Interactions")
+    print("-"*100)
 
+    inter_metrics = compute_classification_metrics(
+        econ_results['interaction_logistic']['y_true'],
+        econ_results['interaction_logistic']['y_pred'],
+        econ_results['interaction_logistic']['y_pred_proba'])
+
+    logger.info("Logistic Regression with Interactions:")
+    logger.info(f"  Accuracy:  {inter_metrics['accuracy']:.4f}")
+    logger.info(f"  Precision: {inter_metrics['precision']:.4f}")
+    logger.info(f"  Recall:    {inter_metrics['recall']:.4f}")
+    logger.info(f"  F1 Score:  {inter_metrics['f1_score']:.4f}")
+    logger.info(f"  ROC-AUC:   {inter_metrics['roc_auc']:.4f}")
+    
 # =============================================================================
-# Model Comparison
+# ECONOMETRIC MODEL DETAILED SUMMARY
 # =============================================================================
 
-def compare_regression_models(results_dict, save_path=None):
-    """Compare the different regression models and save to a csv file."""
-    comparison_data = {}
+def print_econometric_summary(econ_results, data, results_dir_econ):
+    """
+    Print detailed summary of econometric analysis results organized by subsections.
+    Shows top features and coefficients for each model and the files that were created.
+    """
     
-    for model_name, results in results_dict.items():
-        metrics = compute_regression_metrics(results['y_test'], results['y_pred'])
-        comparison_data[model_name] = metrics
+    # Section 4.1: Pooled Linear Regression Results
+    print("-"*100)
+    print("SECTION 4.1: Pooled Linear Regression Results (explain score based on performance metrics)")
+    print("-"*100)
+    logger.info(f"R² = {econ_results['pooled_linear']['model'].rsquared:.4f}")
+    logger.info(f"Adjusted R² = {econ_results['pooled_linear']['model'].rsquared_adj:.4f}")
+    logger.info("Top 5 Features (by absolute coefficient):")
+    top_coefs = econ_results['pooled_linear']['coefficients'][econ_results['pooled_linear']['coefficients']['Feature'] != 'const'].copy()
+    top_coefs = top_coefs.reindex(top_coefs['Coefficient'].abs().sort_values(ascending=False).head(5).index)
+    for _, row in top_coefs.iterrows():
+        logger.info(f"  {row['Feature']:<15} {row['Coefficient']:>7.3f}  (p={row['p_value']:.3f})")
     
-    # Create comparison dataframe with metrics as rows and models as columns
-    comparison_df = comparison_df.reindex(['r_squared', 'rmse', 'mae', 'n_observations'])
+    # Section 4.2: Per-Major Linear Regression Results
+    print("\n" + "-"*100)
+    print("SECTION 4.2: Per-Major Linear Regression Results (show how skill importance varies across tournaments)")
+    print("-"*100)
+    for major in data['major'].unique():
+        r2 = econ_results['per_major_linear'][major]['model'].rsquared
+        logger.info(f"{major}: R² = {r2:.4f}")
     
-    # Save comparison of econometric models to corresponding csv file
-    save_path = Path(save_path)
-    save_path.parent.mkdir(parents=True, exist_ok=True)
-    comparison_df.to_csv(save_path, index=True)
-    logger.info("Saved regression comparison to %s", save_path)
+        # Get top 3 features for this major
+        major_coefs = econ_results['per_major_linear'][major]['coefficients_df']
+        major_coefs = major_coefs[major_coefs['Feature'] != 'const'].copy()
+        top_3 = major_coefs.reindex(major_coefs['Coefficient'].abs().sort_values(ascending=False).head(3).index)
+        logger.info("  Top 3 Features:")
+        for _, row in top_3.iterrows():
+            logger.info(f"    {row['Feature']:<15} {row['Coefficient']:>7.3f}  (p={row['p_value']:.3f})")
+        print()  # Blank line between majors
     
-    return comparison_df
-
-
-def compare_classification_models(results_dict, save_path=None):
-    """Compare the different classification models and save to csv"""
-    comparison_data = {}
+    # Section 4.3: Pooled Logistic Regression Results
+    print("-"*100)
+    print("SECTION 4.3: Pooled Logistic Regression Results (probability of finishing in the top 25% of the leaderboard )")
+    print("-"*100)
+    logistic_acc = accuracy_score(econ_results['pooled_logistic']['y_true'], econ_results['pooled_logistic']['y_pred'])
+    logger.info(f"Accuracy = {logistic_acc:.4f}")
+    logger.info("Top 5 Predictors of Top 25%:")
+    top_logistic = econ_results['pooled_logistic']['coefficients'][econ_results['pooled_logistic']['coefficients']['Feature'] != 'const'].copy()
+    top_logistic = top_logistic.reindex(top_logistic['Coefficient'].abs().sort_values(ascending=False).head(5).index)
+    for _, row in top_logistic.iterrows():
+        logger.info(f"  {row['Feature']:<15} {row['Coefficient']:>7.3f}  (p={row['p_value']:.3f})")
     
-    for model_name, results in results_dict.items():
-        metrics = compute_classification_metrics(results['y_test'], results['y_pred'], results.get('y_pred_proba'))
-        comparison_data[model_name] = metrics
+    # Section 4.4: Logistic Regression with Interactions Results
+    print("\n" + "-"*100)
+    print("SECTION 4.4: Logistic Regression with Interactions Results (probability of finishing in the top 25% of the leaderboard in each Major)")
+    print("-"*100)
+    inter_acc = accuracy_score(econ_results['interaction_logistic']['y_true'], econ_results['interaction_logistic']['y_pred'])
+    logger.info(f"Accuracy = {inter_acc:.4f}")
+    logger.info("Top 3 Features by Major:")
     
-    # Create comparison dataframe with metricss as rows and models as columns
-    comparison_df = pd.DataFrame(comparison_data)
+    comparison_table = econ_results['interaction_logistic']['comparison_table']
+    for major in comparison_table.columns:
+        logger.info(f"  {major}:")
+        # Get top 3 for this major by absolute coefficient
+        major_coefs = comparison_table[major].abs().sort_values(ascending=False).head(3)
+        for feature in major_coefs.index:
+            coef_value = comparison_table.loc[feature, major]
+            logger.info(f"    {feature:<15} {coef_value:>7.3f}")
     
-    # Save comparison of classification models to corresponding csv file
-    save_path = Path(save_path)
-    save_path.parent.mkdir(parents=True, exist_ok=True)
-    comparison_df.to_csv(save_path, index=True)
-    logger.info("Saved model comparison to %s", save_path)
+     # Files Created section
+    print("\n" + "-"*100)
+    logger.info("FILES CREATED:")
     
-    return comparison_df
+    # List CSV files
+    csv_files = sorted(results_dir_econ.glob('*.csv'))
+    for csv_file in csv_files:
+        logger.info(f"  Saved {csv_file.name}")
+    
+    # List PNG files in figures directory
+    figures_dir = results_dir_econ / "figures"
+    png_files = sorted(figures_dir.glob('*.png'))
+    for png_file in png_files:
+        logger.info(f"  Saved {png_file.name}")
+    print("-"*100)
 
 # =============================================================================
-# Evaluation Pipeline Functions
+# MACHINE LEARNING MODEL EVALUATION
 # =============================================================================
-
-def evaluate_econometric_models(econ_results, results_dir):
-    """Evaluate econometric models and print metrics to terminal."""
-    
-    logger.info("Evaluating econometric models")
-    
-    print("\n" + "="*70)
-    print("ECONOMETRIC MODEL EVALUATION")
-    print("="*70)
-
-    # Pooled linear regression
-    pooled_metrics = compute_regression_metrics(econ_results['pooled_linear']['y_true'], econ_results['pooled_linear']['y_pred'])
-    print_regression_metrics("Pooled Linear Regression", pooled_metrics)
-
-    # Pooled logistic regression
-    logistic_metrics = compute_classification_metrics(econ_results['pooled_logistic']['y_true'], econ_results['pooled_logistic']['y_pred'], econ_results['pooled_logistic']['y_pred_proba'])
-    print_classification_metrics("Pooled Logistic Regression", logistic_metrics)
-
-    # Logistic regression with interactions
-    interaction_metrics = compute_classification_metrics(econ_results['interaction_logistic']['y_true'], econ_results['interaction_logistic']['y_pred'], econ_results['interaction_logistic']['y_pred_proba'])
-    print_classification_metrics("Logistic with Interactions", interaction_metrics)
-    
-    print("\n" + "="*70)
-    logger.info("Econometric evaluation complete. Saved to %s", results_dir)
 
 def evaluate_ml_models(ml_results, results_dir):
-    """Evaluate Machine Learning models and print metrics to terminal."""
+    """
+    Evaluate ML models and print metrics organized by subsections.
+    Prints evaluation metrics for Section 5.
+    """
     results_dir = Path(results_dir)
-    logger.info("Evaluating ML models")
+    
+    # Section 5.1: Random Forest
+    print("-"*100)
+    print("SECTION 5.1: Random Forest")
+    print("-"*100)
+    
+    # Training metrics
+    rf_train_pred = ml_results['random_forest']['model'].predict(ml_results['random_forest']['X_train'])
+    rf_train_proba = ml_results['random_forest']['model'].predict_proba(ml_results['random_forest']['X_train'])[:, 1]
+    rf_train_metrics = compute_classification_metrics(
+        ml_results['random_forest']['y_train'],
+        rf_train_pred,
+        rf_train_proba)
 
-    print("\n" + "="*70)
-    print("ML MODEL EVALUATION")
-    print("="*70)
-    
-    # Evaluate the Random Forest model
-    rf_metrics = compute_classification_metrics(ml_results['random_forest']['y_test'], ml_results['random_forest']['y_pred'], ml_results['random_forest']['y_pred_proba'])
-    print_classification_metrics("Random Forest", rf_metrics, ml_results['random_forest']['y_test'], ml_results['random_forest']['y_pred'])
-    
-    # Evaluate XGBoost results
-    print("\n" + "-"*70)
-    xgb_metrics = compute_classification_metrics(ml_results['xgboost']['y_test'], ml_results['xgboost']['y_pred'], ml_results['xgboost']['y_pred_proba'])
-    print_classification_metrics("XGBoost", xgb_metrics, ml_results['xgboost']['y_test'], ml_results['xgboost']['y_pred'])
-    
-    # Combined feature importance (saved top 10 to csv, print only top 5)
-    print("\n" + "-"*70)
-    print("\nFeature Importance Analysis")
-    create_combined_feature_importance(ml_results['random_forest']['importance'], ml_results['xgboost']['importance'], ml_results['shap']['shap_importance'], save_path=results_dir / "combined_feature_importance.csv")
-    print("\n(Top 10 saved to combined_feature_importance.csv)")
-    
-    # Model comparison
-    print("\n" + "="*70)
-    print("MODEL COMPARISON")
-    print("="*70 + "\n")
-    
-    comparison_df = compare_classification_models({'Random Forest': ml_results['random_forest'], 'XGBoost': ml_results['xgboost']}, save_path=results_dir / "ml_model_comparison.csv")
-    
-    print()
-    for metric_name in comparison_df.index:
-        print(f"  {metric_name:<15} RF: {comparison_df.loc[metric_name, 'Random Forest']:.4f}    XGB: {comparison_df.loc[metric_name, 'XGBoost']:.4f}")
+    # Test metrics
+    rf_test_metrics = compute_classification_metrics(
+        ml_results['random_forest']['y_test'], 
+        ml_results['random_forest']['y_pred'], 
+        ml_results['random_forest']['y_pred_proba'])
 
-    print("\n" + "="*70)
+    logger.info("Random Forest:")
+    logger.info(f"  Training Accuracy:  {rf_train_metrics['accuracy']:.4f}")
+    logger.info(f"  Test Accuracy:      {rf_test_metrics['accuracy']:.4f}")
+    logger.info(f"  Overfitting Gap:    {rf_train_metrics['accuracy'] - rf_test_metrics['accuracy']:.4f}")
+    print()  # Blank line
+    logger.info(f"  Precision: {rf_test_metrics['precision']:.4f}")
+    logger.info(f"  Recall:    {rf_test_metrics['recall']:.4f}")
+    logger.info(f"  F1 Score:  {rf_test_metrics['f1_score']:.4f}")
+    logger.info(f"  ROC-AUC:   {rf_test_metrics['roc_auc']:.4f}")
     
-    logger.info("ML evaluation complete")
+    # Random Forest confusion matrix
+    print()  # Blank line
+    logger.info("Confusion Matrix:")
+    cm_rf = compute_confusion_matrix(ml_results['random_forest']['y_test'], ml_results['random_forest']['y_pred'])
+    total_rf = cm_rf.sum()
+    logger.info("                       Predicted")
+    logger.info("                    Rest      Top 25%")
+    logger.info("  Actual")
+    logger.info(f"  Rest              {cm_rf[0,0]:>6}     {cm_rf[0,1]:>6}    (True Negative: {cm_rf[0,0]}, False Positive: {cm_rf[0,1]})")
+    logger.info(f"  Top 25%           {cm_rf[1,0]:>6}     {cm_rf[1,1]:>6}    (False Negative: {cm_rf[1,0]}, True Positive: {cm_rf[1,1]})")
+    print()  # Blank line
+    logger.info(f"Correctly Predicted: {cm_rf[0,0] + cm_rf[1,1]} out of {total_rf} ({(cm_rf[0,0] + cm_rf[1,1])/total_rf*100:.1f}%)")
+    
+    # Section 5.2: XGBoost
+    print("\n" + "-"*100)
+    print("SECTION 5.2: XGBoost")
+    print("-"*100)
+    
+    # Training metrics
+    xgb_train_pred = ml_results['xgboost']['model'].predict(ml_results['xgboost']['X_train'])
+    xgb_train_proba = ml_results['xgboost']['model'].predict_proba(ml_results['xgboost']['X_train'])[:, 1]
+    xgb_train_metrics = compute_classification_metrics(
+        ml_results['xgboost']['y_train'],
+        xgb_train_pred,
+        xgb_train_proba)
 
+    # Test metrics
+    xgb_test_metrics = compute_classification_metrics(
+        ml_results['xgboost']['y_test'], 
+        ml_results['xgboost']['y_pred'], 
+        ml_results['xgboost']['y_pred_proba'])
+
+    logger.info("XGBoost:")
+    logger.info(f"  Training Accuracy:  {xgb_train_metrics['accuracy']:.4f}")
+    logger.info(f"  Test Accuracy:      {xgb_test_metrics['accuracy']:.4f}")
+    logger.info(f"  Overfitting Gap:    {xgb_train_metrics['accuracy'] - xgb_test_metrics['accuracy']:.4f}")
+    print()  # Blank line
+    logger.info(f"  Precision: {xgb_test_metrics['precision']:.4f}")
+    logger.info(f"  Recall:    {xgb_test_metrics['recall']:.4f}")
+    logger.info(f"  F1 Score:  {xgb_test_metrics['f1_score']:.4f}")
+    logger.info(f"  ROC-AUC:   {xgb_test_metrics['roc_auc']:.4f}")
+
+    # XGBoost confusion matrix
+    print()  # Blank line
+    logger.info("Confusion Matrix:")
+    cm_xgb = compute_confusion_matrix(ml_results['xgboost']['y_test'], ml_results['xgboost']['y_pred'])
+    total_xgb = cm_xgb.sum()
+    logger.info("                       Predicted")
+    logger.info("                    Rest      Top 25%")
+    logger.info("  Actual")
+    logger.info(f"  Rest              {cm_xgb[0,0]:>6}     {cm_xgb[0,1]:>6}    (True Negative: {cm_xgb[0,0]}, False Positive: {cm_xgb[0,1]})")
+    logger.info(f"  Top 25%           {cm_xgb[1,0]:>6}     {cm_xgb[1,1]:>6}    (False Negative: {cm_xgb[1,0]}, True Positive: {cm_xgb[1,1]})")
+    print()  # Blank line
+    logger.info(f"Correctly Predicted: {cm_xgb[0,0] + cm_xgb[1,1]} out of {total_xgb} ({(cm_xgb[0,0] + cm_xgb[1,1])/total_xgb*100:.1f}%)")
+
+# =============================================================================
+# MACHINE LEARNING MODEL DETAILED SUMMARY
+# =============================================================================
+def print_ml_summary(ml_results, results_dir):
+    """
+    Print detailed ML analysis summary organized by subsections.
+    Shows model comparison, SHAP analysis, and feature importance.
+    """
+    results_dir = Path(results_dir)
+    
+    # Section 6.1: Model Comparison
+    print("-"*100)
+    print("SECTION 6.1: Model Comparison")
+    print("-"*100)
+    
+    # Get metrics for both models
+    rf_metrics = compute_classification_metrics(ml_results['random_forest']['y_test'], 
+                                               ml_results['random_forest']['y_pred'], 
+                                               ml_results['random_forest']['y_pred_proba'])
+    xgb_metrics = compute_classification_metrics(ml_results['xgboost']['y_test'], 
+                                                ml_results['xgboost']['y_pred'], 
+                                                ml_results['xgboost']['y_pred_proba'])
+    
+    logger.info("Model Comparison:")
+    logger.info(f"{'Metric':<15} {'Random Forest':>15} {'XGBoost':>15} {'Winner':>15}")
+    for metric in ['accuracy', 'precision', 'recall', 'f1_score', 'roc_auc']:
+        rf_val = rf_metrics[metric]
+        xgb_val = xgb_metrics[metric]
+        winner = "XGBoost" if xgb_val > rf_val else "Random Forest" if rf_val > xgb_val else "Tie"
+        logger.info(f"{metric:<15} {rf_val:>15.4f} {xgb_val:>15.4f} {winner:>15}")
+    
+    baseline_acc = 1 - ml_results['xgboost']['y_test'].mean()
+    logger.info(f"Baseline (predict 'Rest' always): {baseline_acc:.4f}")
+    logger.info(f"XGBoost improvement: +{xgb_metrics['accuracy'] - baseline_acc:.4f}")
+    
+    # Section 6.2: SHAP Analysis
+    print("\n" + "-"*100)
+    print("SECTION 6.2: SHAP Analysis (from XGBoost Model)")
+    print("-"*100)
+    
+    logger.info("Global SHAP Importance (Top 5):")
+    shap_top = ml_results['shap']['shap_importance'][~ml_results['shap']['shap_importance']['Feature'].str.startswith('major_')].head(5)
+    for _, row in shap_top.iterrows():
+        logger.info(f"  {row['Feature']:<15} {row['SHAP_Importance']:>8.4f}")
+    
+    print()  # Blank line
+    logger.info("SHAP Importance by Major (Top 3 per tournament):")
+    for major, major_results in ml_results['shap_per_major'].items():
+        logger.info(f"  {major}:")
+        for _, row in major_results['shap_importance'].head(3).iterrows():
+            logger.info(f"    {row['Feature']:<15} {row['SHAP_Importance']:>8.4f}")
+    
+    # Section 6.3: Feature Importance
+    print("\n" + "-"*100)
+    print("SECTION 6.3: Feature Importance of Models and SHAP")
+    print("-"*100)
+    
+    # Get top 5 for each, excluding major dummies
+    rf_top = ml_results['random_forest']['importance'][~ml_results['random_forest']['importance']['Feature'].str.startswith('major_')].head(5)
+    xgb_top = ml_results['xgboost']['importance'][~ml_results['xgboost']['importance']['Feature'].str.startswith('major_')].head(5)
+    shap_top = ml_results['shap']['shap_importance'][~ml_results['shap']['shap_importance']['Feature'].str.startswith('major_')].head(5)
+    
+    logger.info("Random Forest:")
+    for _, row in rf_top.iterrows():
+        logger.info(f"  {row['Feature']:<15} {row['Importance']:>8.4f}")
+    
+    print()  # Blank line
+    logger.info("XGBoost:")
+    for _, row in xgb_top.iterrows():
+        logger.info(f"  {row['Feature']:<15} {row['Importance']:>8.4f}")
+    
+    print()  # Blank line
+    logger.info("SHAP:")
+    for _, row in shap_top.iterrows():
+        logger.info(f"  {row['Feature']:<15} {row['SHAP_Importance']:>8.4f}")
+    
+    # Files Created section
+    print("\n" + "-"*100)
+    logger.info("FILES CREATED:")
+    
+    # List CSV files
+    csv_files = sorted(results_dir.glob('*.csv'))
+    for csv_file in csv_files:
+        logger.info(f"  Saved {csv_file.name}")
+    
+    # List PNG files in figures directory
+    figures_dir = results_dir / "figures"
+    png_files = sorted(figures_dir.glob('*.png'))
+    for png_file in png_files:
+        logger.info(f"  Saved {png_file.name}")
+    print("-"*100)

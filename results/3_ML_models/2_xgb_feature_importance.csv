@@ -1,17 +1,17 @@
 Feature,Importance
-sg_app,0.19662441
-sg_putt,0.14351308
-sg_ott,0.14199339
-sg_arg,0.102957256
-scrambling,0.09020032
-poor_shots,0.048036866
-gir,0.045064345
-accuracy,0.04141823
-great_shots,0.03778726
-distance,0.036786977
-prox_fw,0.028645873
-major_PGA Championship,0.025444904
-major_The Open Championship,0.020374868
-prox_rgh,0.019425243
-major_The Masters,0.01685625
-major_US Open,0.00487072
+sg_app,0.15090865
+sg_putt,0.11533388
+poor_shots,0.10154006
+sg_ott,0.09525402
+sg_arg,0.08923957
+gir,0.078304544
+scrambling,0.073693074
+great_shots,0.053531896
+distance,0.046177488
+accuracy,0.040384267
+major_The Masters,0.034907207
+major_PGA Championship,0.031543028
+prox_rgh,0.03134218
+major_US Open,0.02752189
+prox_fw,0.021520263
+major_The Open Championship,0.008798006

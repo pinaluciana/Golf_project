@@ -24,7 +24,7 @@ def plot_pooled_linear_coefficients(coefficients_df, save_path):
     # Filter out the intercept bc it isnt needed for the plot
     coef_df = coefficients_df[coefficients_df['Feature'] != 'const'].copy()
     
-    # Sort by the raw coefficient value (most negative first)
+    # Sort by the raw coefficient value (biggest positive first)
     coef_df = coef_df.sort_values('Coefficient', ascending=False)
     
     fig, ax = plt.subplots(figsize=(10, 8))
@@ -42,7 +42,6 @@ def plot_pooled_linear_coefficients(coefficients_df, save_path):
     save_path = Path(save_path)
     save_path.parent.mkdir(parents=True, exist_ok=True)
     plt.savefig(save_path, dpi=150, bbox_inches='tight')
-    logger.info("Saved pooled linear coefficients to %s", save_path)
     plt.close()
 
 def plot_per_major_coefficient_heatmap(comparison_df, save_path):
@@ -67,7 +66,6 @@ def plot_per_major_coefficient_heatmap(comparison_df, save_path):
     save_path = Path(save_path)
     save_path.parent.mkdir(parents=True, exist_ok=True)
     plt.savefig(save_path, dpi=150, bbox_inches='tight')
-    logger.info("Saved per-major coefficient heatmap to %s", save_path)
     plt.close()
 
 def plot_pooled_logistic_coefficients(coefficients_df, save_path):
@@ -93,7 +91,6 @@ def plot_pooled_logistic_coefficients(coefficients_df, save_path):
     save_path = Path(save_path)
     save_path.parent.mkdir(parents=True, exist_ok=True)
     plt.savefig(save_path, dpi=150, bbox_inches='tight')
-    logger.info("Saved pooled logistic coefficients to %s", save_path)
     plt.close()
 
 def plot_interaction_logistic_heatmap(comparison_table, save_path):
@@ -116,13 +113,11 @@ def plot_interaction_logistic_heatmap(comparison_table, save_path):
     save_path = Path(save_path)
     save_path.parent.mkdir(parents=True, exist_ok=True)
     plt.savefig(save_path, dpi=150, bbox_inches='tight')
-    logger.info("Saved interaction logistic heatmap to %s", save_path)
     plt.close()
 
 
 def create_econometric_visualizations(econ_results, results_dir):
     """Generate all the above mentioned econometric models visualizations."""
-    logger.info("Creating econometric visualizations")
     
     results_dir = Path(results_dir)
     figures_dir = results_dir / "figures"
@@ -139,9 +134,6 @@ def create_econometric_visualizations(econ_results, results_dir):
     
     # 3b. Logistic Regression with Interactions
     plot_interaction_logistic_heatmap(econ_results['interaction_logistic']['comparison_table'], save_path=figures_dir / "3b_interaction_logistic_heatmap.png")
-    
-    logger.info("Econometric visualizations complete. Saved to %s", figures_dir)
-
 
 # =============================================================================
 # ML MODEL VISUALIZATIONS
@@ -183,7 +175,6 @@ def plot_feature_importance_comparison(rf_importance, xgb_importance, shap_impor
     save_path = Path(save_path)
     save_path.parent.mkdir(parents=True, exist_ok=True)
     plt.savefig(save_path, dpi=150, bbox_inches='tight')
-    logger.info("Saved feature importance comparison to %s", save_path)
     plt.close()
 
 def plot_per_major_shap_heatmap(shap_per_major_df, save_path):
@@ -217,7 +208,6 @@ def plot_per_major_shap_heatmap(shap_per_major_df, save_path):
     save_path = Path(save_path)
     save_path.parent.mkdir(parents=True, exist_ok=True)
     plt.savefig(save_path, dpi=150, bbox_inches='tight')
-    logger.info("Saved per-major SHAP heatmap to %s", save_path)
     plt.close()
 
 
@@ -262,12 +252,10 @@ def plot_confusion_matrices(rf_results, xgb_results, save_path):
     save_path = Path(save_path)
     save_path.parent.mkdir(parents=True, exist_ok=True)
     plt.savefig(save_path, dpi=150, bbox_inches='tight')
-    logger.info("Saved confusion matrices to %s", save_path)
     plt.close()
 
 def create_ml_visualizations(ml_results, results_dir):
     """Generate all the above mentioned Machine Learning models visualizations."""
-    logger.info("Creating ML visualizations")
     
     results_dir = Path(results_dir)
     figures_dir = results_dir / "figures"
@@ -284,25 +272,3 @@ def create_ml_visualizations(ml_results, results_dir):
     # 3. Confusion Matrices for Random Forrest and XGBoost
     plot_confusion_matrices(ml_results['random_forest'], ml_results['xgboost'], save_path=figures_dir / "3_confusion_matrices.png")
     
-    logger.info("ML visualizations complete. Saved to %s", figures_dir)
-
-
-# =============================================================================
-# Script Entry Point
-# =============================================================================
-
-if __name__ == "__main__":
-    import sys
-    
-    # Add src directory to path
-    SRC_DIR = Path(__file__).parent
-    if str(SRC_DIR) not in sys.path:
-        sys.path.insert(0, str(SRC_DIR))
-    
-    logging.basicConfig(
-        level=logging.INFO,
-        format='%(asctime)s - %(levelname)s - %(message)s')
-    
-    print("To generate visualizations, import and call:")
-    print("  create_econometric_visualizations(econ_results, results_dir)")
-    print("  create_ml_visualizations(ml_results, results_dir)")

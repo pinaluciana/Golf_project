@@ -88,13 +88,6 @@ def create_top25_target(df):
     # Mark top 25% (score <= threshold bc lower is better in golf)
     df['top_25'] = (df['total_score'] <= df['tournament_25th_percentile']).astype(int)
     
-    # Log the distribution
-    logger.info("Created top 25%% target:")
-    logger.info("  Top 25%%: %d (%.1f%%)", df['top_25'].sum(), 
-                df['top_25'].sum() / len(df) * 100)
-    logger.info("  Rest of field: %d (%.1f%%)", (df['top_25'] == 0).sum(),
-                (df['top_25'] == 0).sum() / len(df) * 100)
-    
     return df
 
 def get_feature_groups():

@@ -1,7 +1,6 @@
 """
-Exploratory Analysis of Golf Performance Variables in Major Championships.
-This module computes descriptive statistics and generates exploratory visualizations.
-Model-related plots are in visualization.py.
+Exploratory analysis of golf performance data in Major Championships.
+This module computes basic descriptive statistics and produces exploratory plots used to understand performance patterns before modeling.
 """
 
 import logging
@@ -14,50 +13,14 @@ matplotlib.use('Agg')  # We use this non-interactive back end for saving figures
 import matplotlib.pyplot as plt  
 import seaborn as sns 
 
-logger = logging.getLogger(__name__)
+# To import "ALL_METRICS" for correlation analysis
+from feature_engineering import FEATURES, ALL_METRICS 
 
-# All metrics for correlation analysis
-ALL_METRICS = ['total_score', 'sg_total', 'sg_ott', 'sg_app', 'sg_arg', 'sg_putt', 'sg_t2g', 'sg_bs', 'distance', 'accuracy', 'gir', 'prox_fw', 'prox_rgh', 'scrambling', 'great_shots', 'poor_shots']
+logger = logging.getLogger(__name__)
 
 # Features for modeling (excluding composite metrics to avoid multicollinearity)
 # Excluded: sg_total (sum of all SG), sg_t2g (sg_ott + sg_app + sg_arg), sg_bs (sg_ott + sg_app)
 KEY_METRICS = ['sg_ott', 'sg_app', 'sg_arg', 'sg_putt', 'distance', 'accuracy', 'gir', 'prox_fw', 'prox_rgh', 'scrambling', 'great_shots', 'poor_shots']
-
-# =============================================================================
-# Dataset Overview
-# =============================================================================
-
-def print_dataset_overview(df):
-    """Print basic info about the dataset."""
-    print("=" * 60)
-    print("DATASET OVERVIEW")
-    print("=" * 60)
-    print(f"Dataset shape: {df.shape}")
-    print(f"Total player-tournament records: {len(df)}")
-    print(f"Unique players: {df['player_name'].nunique()}")
-    print(f"Years covered: {df['year'].min()} - {df['year'].max()}")
-    print(f"Majors: {df['major'].unique().tolist()}")
-    print()
-
-# =============================================================================
-# Descriptive Statistics by Major
-# =============================================================================
-
-def compute_metrics_by_major(df):
-    """Compute descriptive statistics for all performance metrics grouped by major."""
-    # Set pandas display options for clean output
-    pd.set_option('display.max_columns', None)
-    pd.set_option('display.max_rows', None)
-    pd.set_option('display.width', None)
-    results = {}
-    
-    # Scoring: include min/max to see the range of winning vs losing scores
-    results['scoring'] = df.groupby('major')[['total_score']].agg(['mean', 'std', 'min', 'max']).round(3)
-    
-    # Stats for each metric group
-    for group_name, metrics in FEATURE_GROUPS.items():
-        results[group_name] = df.groupby('major')[metrics].agg(['mean', 'std']).round(3)
-    return results
 
 # =============================================================================
 # Winner Analysis
@@ -83,8 +46,7 @@ def add_top25_flag(df):
     df = df.copy()
     
     # Calculate the 25th percentile per tournament
-    df['tournament_25th_percentile'] = df.groupby(
-        ['major', 'year'])['total_score'].transform(lambda x: x.quantile(0.25))
+    df['tournament_25th_percentile'] = df.groupby(['major', 'year'])['total_score'].transform(lambda x: x.quantile(0.25))
     
     # Mark the top 25% (score <= threshold bc lower is better in golf)
     df['is_top_25'] = df['total_score'] <= df['tournament_25th_percentile']
@@ -136,11 +98,6 @@ def compute_correlations(df):
     """Compute correlation matrix for all players."""
     return df[ALL_METRICS].corr()
 
-def compute_winner_correlations(df):
-    """Compute correlation matrix for tournament winners only."""
-    winners_data = df[df['position'] == '1']
-    return winners_data[ALL_METRICS].corr()
-
 # =============================================================================
 # Exploratory Visualizations
 # =============================================================================
@@ -157,7 +114,6 @@ def plot_correlation_heatmap(corr_matrix, save_path=None):
     if save_path:
         Path(save_path).parent.mkdir(parents=True, exist_ok=True)
         plt.savefig(save_path, dpi=150, bbox_inches='tight')
-        logger.info("Saved correlation heatmap to %s", save_path)
     plt.close()
 
 def plot_top25_comparison(std_difference, save_path=None):
@@ -190,7 +146,6 @@ def plot_top25_comparison(std_difference, save_path=None):
     if save_path:
         Path(save_path).parent.mkdir(parents=True, exist_ok=True)
         plt.savefig(save_path, dpi=150, bbox_inches='tight')
-        logger.info("Saved top 25%% comparison to %s", save_path)
     plt.close()
 
 def plot_performance_heatmap(df, save_path=None):
@@ -220,7 +175,6 @@ def plot_performance_heatmap(df, save_path=None):
     if save_path:
         Path(save_path).parent.mkdir(parents=True, exist_ok=True)
         plt.savefig(save_path, dpi=150, bbox_inches='tight')
-        logger.info("Saved performance heatmap to %s", save_path)
     plt.close()
 
 def plot_distribution_dashboard(df, save_path=None):
@@ -251,7 +205,6 @@ def plot_distribution_dashboard(df, save_path=None):
     if save_path:
         Path(save_path).parent.mkdir(parents=True, exist_ok=True)
         plt.savefig(save_path, dpi=150, bbox_inches='tight')
-        logger.info("Saved distribution dashboard to %s", save_path)
     plt.close()
 
 # =============================================================================
@@ -260,9 +213,7 @@ def plot_distribution_dashboard(df, save_path=None):
 
 def run_exploratory_analysis(df, results_dir=None):
     """Run exploratory analysis, save csv data inside results and save plots inside visualizations."""
-    
-    logger.info("Starting exploratory analysis")
-    
+        
     # Setup results directory
     if results_dir is None:
         results_dir = Path(__file__).parent.parent / "results" / "1_Exploratory"
@@ -275,61 +226,91 @@ def run_exploratory_analysis(df, results_dir=None):
     
     results = {}
     
-    # 1. Dataset Overview (print to terminal)
-    print_dataset_overview(df)
-    
-    # 2. Metrics by Major (save to csv)
-    logger.info("Computing performance metrics by major...")
+    # 1. Metrics by Major (save to csv)
     metrics_df = df.groupby('major')[ALL_METRICS].agg(['mean', 'std']).round(3)
     metrics_df.to_csv(results_dir / "metrics_by_major.csv")
-    logger.info("Saved metrics to %s", results_dir / "metrics_by_major.csv")
     
-    # 3. Winner Analysis (save to csv)
+    # 2. Winner Analysis (save to csv)
     results['winner_stats'] = analyze_winners(df)
     results['winner_stats'].to_csv(results_dir / "winning_scores_by_major.csv")
-    logger.info("Saved winning scores to %s", results_dir / "winning_scores_by_major.csv")
     
-    # 4. Correlation Analysis (create heatmap)
+    # 3. Correlation Analysis (create heatmap)
     results['correlations'] = compute_correlations(df)
     plot_correlation_heatmap(results['correlations'],
         save_path=figures_dir / "correlation_heatmap.png")
     
-    # 5. Performance by Major (create heatmap)
+    # 4. Performance by Major (create heatmap)
     plot_performance_heatmap(df, save_path=figures_dir / "performance_by_major.png")
 
-     # 6. Distribution Dashboard (one figure with all metrics boxplots)
+     # 5. Distribution Dashboard (one figure with all metrics boxplots)
     plot_distribution_dashboard(df, save_path=figures_dir / "distribution_dashboard.png")
 
-    # 7. Top 25% vs Rest Analysis
+    # 6. Top 25% vs Rest Analysis
     df_with_flag = add_top25_flag(df)
     results['top25_comparison'] = compare_top25_vs_rest(df_with_flag)
     results['top25_std_diff'] = compute_standardized_top25_difference(df_with_flag)
     
     plot_top25_comparison(results['top25_std_diff'], save_path=figures_dir / "top25_comparison.png")
     
-    logger.info("Exploratory analysis complete. Results saved to %s", results_dir)
     return results
 
-# =============================================================================
-# Script Entry Point
-# =============================================================================
-
-if __name__ == "__main__":
-    import sys
-    # Add src directory to path for imports
-    SRC_DIR = Path(__file__).parent
-    if str(SRC_DIR) not in sys.path:
-        sys.path.insert(0, str(SRC_DIR))
+def print_exploratory_summary(df, exploratory_results, results_dir):
+    """
+    Print exploratory analysis summary using results from run_exploratory_analysis().
+    This reuses existing computed results rather than recalculating.
+    """
     
-    logging.basicConfig(level=logging.INFO,
-        format='%(asctime)s - %(levelname)s - %(message)s')
+    # Dataset Overview
+    logger.info("DATASET OVERVIEW:")
+    logger.info(f"  Dataset shape: {df.shape}")
+    logger.info(f"  Total player-tournament records: {len(df)}")
+    logger.info(f"  Unique players: {df['player_name'].nunique()}")
+    logger.info(f"  Years covered: {df['year'].min()} - {df['year'].max()}")
+    logger.info(f"  Majors: {df['major'].unique().tolist()}")
     
-    from data_loader import load_combined_data
+    # Exploratory Summary
+    print()  # Blank line
+    logger.info("EXPLORATORY SUMMARY:")
     
-    # Load data
-    data = load_combined_data()
+    # Winning Scores - computed fresh from data
+    logger.info("Winning Scores per Major:")
+    winners = df[df['position'] == '1'].groupby('major')['total_score'].agg(['mean', 'min', 'max'])
+    for major in winners.index:
+        logger.info(f"  {major:<25} Mean: {winners.loc[major, 'mean']:>6.2f}  "
+              f"Best: {int(winners.loc[major, 'min']):>3}  "
+              f"Worst: {int(winners.loc[major, 'max']):>3}")
     
-    # Run analysis
-    results = run_exploratory_analysis(data)
+    # Top 25% Distribution - reuses exploratory_results
+    print()  # Blank line
+    logger.info("Top 25% Distribution:")
+    top25_count = exploratory_results['top25_comparison']['counts']
+    logger.info(f"  Top 25%:       {top25_count['top_25']:>4} players ({top25_count['top_25']/top25_count['total']*100:.1f}%)")
+    logger.info(f"  Rest of field: {top25_count['rest']:>4} players ({top25_count['rest']/top25_count['total']*100:.1f}%)")
     
-    print("\nExploratory analysis complete!")
+    # Correlations - reuses exploratory_results['correlations']
+    print()  # Blank line
+    logger.info("Top 5 Correlations with Total Score:")
+    score_corr = exploratory_results['correlations']['total_score'].drop('total_score').abs().sort_values(ascending=False).head(5)
+    for feature in score_corr.index:
+        corr_val = exploratory_results['correlations'].loc[feature, 'total_score']
+        direction = "negative" if corr_val < 0 else "positive"
+        logger.info(f"  {feature:<15} {corr_val:>7.3f} ({direction})")
+    
+    # Standardized Differences - reuses exploratory_results['top25_std_diff']
+    print()  # Blank line
+    logger.info("Top 5 Standardized Differences (Top 25% vs Rest):")
+    for feature, diff in exploratory_results['top25_std_diff'].head(5).items():
+        logger.info(f"  {feature:<15} {diff:>7.3f} std deviations")
+    
+    # Files Created - lists files in results_dir
+    print("\n" + "-"*100)
+    logger.info("FILES CREATED:")
+    figures_dir = results_dir / "figures"
+    csv_files = sorted(results_dir.glob('*.csv'))
+    png_files = sorted(figures_dir.glob('*.png'))
+    
+    for csv_file in csv_files:
+        logger.info(f"  Saved {csv_file.name}")
+    for png_file in png_files:
+        logger.info(f"  Saved {png_file.name}")
+    print("-"*100)

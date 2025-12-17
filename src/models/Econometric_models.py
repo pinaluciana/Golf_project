@@ -175,9 +175,7 @@ def fit_logistic_with_interactions(df):
 def run_econometric_analysis(df, results_dir=None):
     """
     Run all econometric models and save results to CSV.
-    """
-    logger.info("Starting econometric analysis")
-    
+    """    
     # Setup results directory (golf_project/results/2_Econometric_models)
     if results_dir is None:
         results_dir = Path(__file__).parent.parent.parent / "results" / "2_Econometric_models"
@@ -190,7 +188,6 @@ def run_econometric_analysis(df, results_dir=None):
     # =========================================================================
     # Model 1: Pooled Linear Regression
     # =========================================================================
-    logger.info("Running Model 1: Pooled Linear Regression")
     results['pooled_linear'] = fit_pooled_linear(df)
     
     # Save comprehensive coefficients to CSV
@@ -200,7 +197,6 @@ def run_econometric_analysis(df, results_dir=None):
     # =========================================================================
     # Model 2: Per-Major Linear Regression
     # =========================================================================
-    logger.info("Running Model 2: Per-Major Linear Regression")
     results['per_major_linear'] = fit_per_major_linear(df)
     
     # Save each major's coefficients to separate CSV
@@ -215,9 +211,7 @@ def run_econometric_analysis(df, results_dir=None):
     
     # =========================================================================
     # Model 3: Logistic Regression
-    # =========================================================================
-    logger.info("Running Model 3: Logistic Regression")
-    
+    # =========================================================================    
     # Add top 25% target
     df = create_top25_target(df)
     
@@ -230,91 +224,6 @@ def run_econometric_analysis(df, results_dir=None):
     results['interaction_logistic'] = fit_logistic_with_interactions(df)
     results['interaction_logistic']['comparison_table'].to_csv(
         results_dir / "3b_interaction_coefficients.csv")
-    
-    # =========================================================================
-    # Summary of Key Results
-    # =========================================================================
-
-    # Print summary with top features
-    print("\n" + "="*70)
-    print("ECONOMETRIC ANALYSIS SUMMARY")
-    print("="*70)
-    
-    # Pooled Linear R² and top features
-    print(f"\n1. Pooled Linear Regression: R² = {results['pooled_linear']['model'].rsquared:.3f}")
-    top_coefs = results['pooled_linear']['coefficients'][results['pooled_linear']['coefficients']['Feature'] != 'const'].copy()
-    top_coefs = top_coefs.reindex(top_coefs['Coefficient'].abs().sort_values(ascending=False).head(5).index)
-    print("   Top 5 Features (by absolute coefficient):")
-    for _, row in top_coefs.iterrows():
-        print(f"      {row['Feature']:<15} {row['Coefficient']:>7.3f}  (p={row['p_value']:.3f})")
-    
-    # Per-Major R² comparison with top 3 features
-    print("\n2. Per-Major Linear Regression:")
-    for major in df['major'].unique():
-        r2 = results['per_major_linear'][major]['model'].rsquared
-        print(f"\n   {major}: R² = {r2:.3f}")
         
-        # Get top 3 features for this major
-        major_coefs = results['per_major_linear'][major]['coefficients_df']
-        major_coefs = major_coefs[major_coefs['Feature'] != 'const'].copy()
-        top_3 = major_coefs.reindex(major_coefs['Coefficient'].abs().sort_values(ascending=False).head(3).index)
-        print("      Top 3 Features:")
-        for _, row in top_3.iterrows():
-            print(f"         {row['Feature']:<15} {row['Coefficient']:>7.3f}")
-    
-    # Logistic accuracy and top features
-    from sklearn.metrics import accuracy_score
-    logistic_acc = accuracy_score(results['pooled_logistic']['y_true'], results['pooled_logistic']['y_pred'])
-    print(f"\n3. Pooled Logistic Regression: Accuracy = {logistic_acc:.3f}")
-    
-    top_logistic = results['pooled_logistic']['coefficients'][results['pooled_logistic']['coefficients']['Feature'] != 'const'].copy()
-    top_logistic = top_logistic.reindex(top_logistic['Coefficient'].abs().sort_values(ascending=False).head(5).index)
-    print("   Top 5 Predictors of Top 25%:")
-    for _, row in top_logistic.iterrows():
-        print(f"      {row['Feature']:<15} {row['Coefficient']:>7.3f}  (p={row['p_value']:.3f})")
-    
-    # Logistic with interactions
-    interaction_acc = accuracy_score(results['interaction_logistic']['y_true'], results['interaction_logistic']['y_pred'])
-    print(f"\n4. Logistic Regression with Interactions: Accuracy = {interaction_acc:.3f}")
-    print("   Top 3 Features by Major:")
-    
-    comparison_table = results['interaction_logistic']['comparison_table']
-    for major in comparison_table.columns:
-        print(f"\n      {major}:")
-        # Get top 3 for this major by absolute coefficient
-        major_coefs = comparison_table[major].abs().sort_values(ascending=False).head(3)
-        for feature in major_coefs.index:
-            coef_value = comparison_table.loc[feature, major]
-            print(f"         {feature:<15} {coef_value:>7.3f}")
-    
-    print("\n" + "="*70 + "\n")
-    
-    # =========================================================================
-
-    logger.info("Econometric analysis complete. Results saved to %s", results_dir)
-    
     return results
-
-# =============================================================================
-# Script Entry Point
-# =============================================================================
-
-if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-    
-    from data_loader import load_combined_data 
-    from visualization import create_econometric_visualizations
-
-    # Load data
-    logger.info("Loading combined dataset")
-    data = load_combined_data()
-    
-    # Run analysis (results saved to CSV)
-    results = run_econometric_analysis(data)
-
-    # Create visualisations (saved to figures folder inside results)
-    results_dir = Path(__file__).parent.parent.parent / "results" / "2_Econometric_models"
-    create_econometric_visualizations(results, results_dir)
-
-    logger.info("Done with Econometric models")
 
