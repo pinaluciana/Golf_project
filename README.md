@@ -79,7 +79,9 @@ pip install -r requirements.txt
 
 ## Usage
 Run main.py file
+
 **Runtime:** between 5 and 7 minutes
+
 **Expected output:** 16 csv files and 11 png visualizations all saved under results/
 
 **Sections executued**:
@@ -141,7 +143,7 @@ Golf_project/
 
 
 # Data
-**Source:** DataGolf website (Cratch Plus account) manual download of all data for the 4 tournaments between 2020-2025 
+**Source:** DataGolf website (Scratch Plus account) manual download of all data for the 4 tournaments between 2020-2025 
 
 **Data preparation**: 
 - Removed all players who didn't make the cut 
