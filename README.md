@@ -4,6 +4,7 @@
 **Student:** Luciana Piña Strzelecki  
 **Student ID:** 20382701
 
+
 ## Research Question
 Which performance metrics drive success in golf's Major Championships, and how does skill importance vary across different tournaments (The Masters, PGA Championship, US Open, The Open Championship)?
 
@@ -65,11 +66,14 @@ Using Conda dependencies (through environment.yml) or pip dependencies (through 
 
 #### Using Conda
 conda env create -f environment.yml
+
 conda activate Golf_project
 
 #### Using pip
 python -m venv .venv
+
 source .venv/bin/activate
+
 pip install -r requirements.txt
 
 
@@ -87,6 +91,7 @@ Run main.py file
 - Section 6: Machine Learning Analysis
 
 ## Project Structure
+
 Golf_project/
 ├── main.py                    # Main entry point
 ├── environment.yml            # Conda dependencies
@@ -137,9 +142,16 @@ Golf_project/
 
 # Data
 **Source:** DataGolf website (Cratch Plus account) manual download of all data for the 4 tournaments between 2020-2025 
-**Data preparation**: removed all players who didn't make the cut (only participated in half of the tournament), as well as players who got disqualified (DQ) or withdrawn (WD) per year, per Major Championship. Also removed US Open 2022 because the following metrics were unavailable: gir, prox_fw, prox_rgh, scrambling, great_shot, poor_shot.
-**Sample:** 1,384 records
+
+**Data preparation**: 
+- Removed all players who didn't make the cut 
+- Removed players who got disqualified (DQ) or withdrawn (WD)
+- Excluded US Open 2022 because the following metrics were unavailable: gir, prox_fw, prox_rgh, scrambling, great_shot, poor_shot.
+
+**Sample:** 1,384 player-tournament records
+
 **Tournaments:** The Masters, PGA Championship, US Open, The Open Championship  
+
 
 ## Reproducibility
 All the results are reproducible using `random_state=42`.
