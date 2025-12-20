@@ -117,7 +117,7 @@ Golf_project/
     ├── 1_Exploratory/
     ├── 2_Econometric_models/
     └── 3_ML_models/
-
+```
 
 ## Results
 **Econometric Models:**
