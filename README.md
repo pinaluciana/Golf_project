@@ -93,7 +93,7 @@ Run main.py file
 - Section 6: Machine Learning Analysis
 
 ## Project Structure
-
+```text
 Golf_project/
 ├── main.py                    # Main entry point
 ├── environment.yml            # Conda dependencies
