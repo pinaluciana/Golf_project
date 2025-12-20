@@ -68,14 +68,14 @@ Using Conda dependencies (through environment.yml) or pip dependencies (through 
 ```text
 conda env create -f environment.yml
 conda activate Golf_project
-´´´
+```
 
 #### Using pip (with requirements.txt)
 ```text
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-´´´
+```
 
 ## Usage
 - Run main.py file
