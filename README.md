@@ -64,12 +64,12 @@ Golf performance is measured across different categories:
 ### Create Environment
 Using Conda dependencies (through environment.yml) or pip dependencies (through requirements.txt) 
 
-#### Using Conda
+#### Using Conda (with environment.yml)
 conda env create -f environment.yml
 
 conda activate Golf_project
 
-#### Using pip
+#### Using pip (with requirements.txt)
 python -m venv .venv
 
 source .venv/bin/activate
@@ -156,4 +156,4 @@ Golf_project/
 
 
 ## Reproducibility
-All the results are reproducible using `random_state=42`.
+All the results are reproducible using random_state=42.
