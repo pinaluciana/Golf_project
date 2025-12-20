@@ -65,24 +65,22 @@ Golf performance is measured across different categories:
 Using Conda dependencies (through environment.yml) or pip dependencies (through requirements.txt) 
 
 #### Using Conda (with environment.yml)
+```text
 conda env create -f environment.yml
-
 conda activate Golf_project
+´´´
 
 #### Using pip (with requirements.txt)
+```text
 python -m venv .venv
-
 source .venv/bin/activate
-
 pip install -r requirements.txt
-
+´´´
 
 ## Usage
-Run main.py file
-
-**Runtime:** between 5 and 7 minutes
-
-**Expected output:** 16 csv files and 11 png visualizations all saved under results/
+- Run main.py file
+- **Runtime:** between 5 and 7 minutes
+- **Expected output:** 16 csv files and 11 png visualizations all saved under results/
 
 **Sections executued**:
 - Section 1: Exploratory Analysis
