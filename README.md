@@ -107,6 +107,7 @@ Golf_project/
 ├── requirements.txt           # Pip dependencies
 ├── proposal.md                # Project proposal
 ├── README.md                  # This file
+├── Golf_report_LSP.pdf        # Final report
 ├── src/                       # Source code
 │   ├── data_loader.py         # Data loading
 │   ├── exploratory.py         # Exploratory analysis
