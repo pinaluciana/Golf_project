@@ -14,11 +14,11 @@ Which performance metrics drive success in golf's Major Championships, and how d
 **Golf scoring:** In golf lower scores mean better performance. The score represents the number of strokes per round. Tournaments consist of usually 4 rounds (played over 4 days), with each round covering 18 holes (length of a usual course). A typical round should be completed in 70-72 strokes depending on the course, called "par". Scores are shown relative to par (for example, -2 means 2 strokes below par, 2 strokes better than expected). This project analyzes total tournament scores from all 4 rounds combined, which typically range from -1 (worse) to -21 (best), with average winners around -10 (depending on the tournament).
 
 **The Four Major Championships:**
-- **The Masters:** Played every year in the same course: Augusta National Golf Club (Georgia USA). Very exclusive and small (#players), golfers can only assist if invited or if they fullfill certain criteria (past Masters winners, recent Major winners, top world-wide players and special invitations). Played in April.
+- **The Masters:** Played every year in the same course: Augusta National Golf Club (Georgia USA). Very exclusive and small (#players), golfers can only assist if invited or if they fulfill certain criteria (past Masters winners, recent Major winners, top world-wide players and special invitations). Played in April.
 - **PGA Championship:** Played in the USA only but in different courses every year.
 The only Major that is limited to professional golfers, mainly from the PGA tour (PGA pros, Major winners, and top-ranked players). Played in May.
-- **US Open:** Played in rotating courses accross the USA, they tend to be very difficult courses. Called Open because any player (professional or amateur) can try to qualify. Played in June.
-- **The Open Championship:** Played on coastal courses in the UK and Irland. Players  from all major professional tours from around the world can qualify. Played in July.
+- **US Open:** Played in rotating courses across the USA, they tend to be very difficult courses. Called Open because any player (professional or amateur) can try to qualify. Played in June.
+- **The Open Championship:** Played on coastal courses in the UK and Ireland. Players  from all major professional tours from around the world can qualify. Played in July.
 
 Each Major has unique characteristics that reward different skills. This project aims to analyze which skills matter the most at each tournament.
 
@@ -89,7 +89,7 @@ python main.py
 ## Usage
 - Run main.py file
 - **Runtime:** between 5 and 7 minutes
-- **Expected output:** 16 csv files and 11 png visualizations all saved under results/
+- **Expected output:** 16 CSV files and 11 png visualizations all saved under results/
 
 **Sections executued**:
 - Section 1: Exploratory Analysis
@@ -155,7 +155,7 @@ Golf_project/
 **Data preparation**: 
 - Removed all players who didn't make the cut 
 - Removed players who got disqualified (DQ) or withdrawn (WD)
-- Excluded US Open 2022 because the following metrics were unavailable: gir, prox_fw, prox_rgh, scrambling, great_shot, poor_shot.
+- Excluded US Open 2022 because the following metrics were unavailable: gir, prox_fw, prox_rgh, scrambling, great_shots, poor_shots.
 
 **Sample:** 1,384 player-tournament records
 
@@ -164,3 +164,11 @@ Golf_project/
 
 ## Reproducibility
 All the results are reproducible using random_state=42.
+
+### Notes on Reproducibility and Numerical Precision
+
+When re-running `main.py`, some CSV files in the econometric model results may appear as modified in version control.  
+This is due to very small numerical differences (at the 14th–15th decimal places) in estimated coefficients caused by floating-point precision and repeated optimization.  
+
+These differences do **not** affect statistical significance, model interpretation or any reported conclusions.
+
