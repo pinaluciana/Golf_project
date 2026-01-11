@@ -61,21 +61,30 @@ Golf performance is measured across different categories:
 
 ## Setup
 
-### Create Environment
-Using Conda dependencies (through environment.yml) or pip dependencies (through requirements.txt) 
+### Step 1: Clone the Repository
+```bash
+git clone https://github.com/pinaluciana/Golf_project
+cd Golf_project
+```
 
-#### Using Conda (with environment.yml)
-```text
+### Step 2: Create and Activate Conda Environment
+```bash
 conda env create -f environment.yml
 conda activate Golf_project
 ```
 
-#### Using pip (with requirements.txt)
-```text
-python -m venv .venv
-source .venv/bin/activate
+### Alternative if you prefer to install dependencies manually:
+```bash
+conda create -n Golf_project python=3.11
+conda activate Golf_project
 pip install -r requirements.txt
 ```
+
+### Step 3: Run the Full Pipeline
+```bash
+python main.py
+```
+
 
 ## Usage
 - Run main.py file
